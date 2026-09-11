@@ -4,7 +4,7 @@ import { MODULES } from '../state/parameters.js';
 export const targetLabel = parameter => (MODULES.find(module => module.id === parameter.module)?.displayName || parameter.module) + ' · ' + parameter.displayName;
 export function fillTargetOptions(select, parameters) { for (const parameter of parameters) select.add(new Option(targetLabel(parameter), parameter.id)); }
 
-const lfoMarkup = (id, label) => `<section class="modulation-module" data-source="${id}" data-collapse-section="${id}">
+const lfoMarkup = (id, label) => `<section class="modulation-module" data-source="${id}">
   <div class="module-header"><label class="module-power"><input type="checkbox" role="switch" aria-label="${label} aktivieren" data-field="enabled"><span class="module-power-state">OFF</span></label><h3>${label}</h3><small>Waveform · Tempo</small></div>
   <div class="module-content modulation-module-content" ><div class="modulator-layout"><div class="modulator-controls">
     <label>Waveform<select data-field="waveform"><option value="sine">Sine</option><option value="triangle">Triangle</option><option value="saw">Saw</option><option value="square">Square</option><option value="random">Random</option></select></label>
@@ -15,7 +15,7 @@ const lfoMarkup = (id, label) => `<section class="modulation-module" data-source
     <label>Phase / °<input type="range" min="0" max="360" step="1" data-field="phase"></label>
     <small data-tempo-status>Tempo: 120 BPM · bereit</small></div><div class="modulator-visual"><canvas data-lfo-visual="${id}" aria-label="${label} Waveform"></canvas><output data-current-value>0 %</output></div></div></div></section>`;
 
-const envelopeMarkup = (id, label) => `<section class="modulation-module" data-source="${id}" data-collapse-section="${id}">
+const envelopeMarkup = (id, label) => `<section class="modulation-module" data-source="${id}">
   <div class="module-header"><label class="module-power"><input type="checkbox" role="switch" aria-label="${label} aktivieren" data-field="enabled"><span class="module-power-state">OFF</span></label><h3>${label}</h3><small>Input · Envelope</small></div>
   <div class="module-content modulation-module-content" ><div class="modulator-layout"><div class="modulator-controls">
     <label>Attack / ms<input type="range" min="1" max="1000" data-field="attack"></label><label>Release / ms<input type="range" min="10" max="3000" data-field="release"></label>

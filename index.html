@@ -65,9 +65,8 @@
           <input id="wetGain" type="range" min="-24" max="12" step="0.1" value="0">
           <div class="range-labels"><span>-24 dB</span><span>+12 dB</span></div>
         </label>
-        <button id="autoGain" class="mute-button" type="button" aria-pressed="false">Auto Gain</button>
+        <button id="autoGain" class="mix-action-button" type="button" aria-pressed="false">Auto Gain</button>
         <output id="autoGainValue" class="auto-gain-value">AG: 0.0 dB</output>
-        <button id="mute" class="mute-button" type="button" aria-pressed="false">Mute</button>
         </div>
       </div>
       <div class="status-grid">
@@ -120,7 +119,7 @@
               <label>BPM Mode<select id="freezeBpmMode"><option value="auto">Auto</option><option value="manual">Manual</option></select></label>
               <label>Manual BPM<input id="freezeManualBpm" type="number" min="40" max="240" step="0.01" value="120"></label>
               <button id="freezeLockBpm" type="button" aria-pressed="false" disabled>Lock BPM</button>
-              <button id="freezeSetBeat1" type="button" disabled>Set Beat 1</button>
+              <button id="freezeSetBeat1" type="button" disabled>Set Beat</button>
               <label>Start Quantize<select id="freezeStartQuantize">
                 <option value="auto">Auto · Beat / Bar</option>
                 <option value="1/32">1/32 Note</option><option value="1/16">1/16 Note</option><option value="1/8">1/8 Note</option>
@@ -130,8 +129,14 @@
               <label>Release Quantize<select id="freezeReleaseQuantize"><option value="off">Off</option><option value="beat">Beat</option><option value="bar">Bar</option></select></label>
             </div>
             <div class="freeze-sync-summary"><strong id="freezeBeatValue">Beat — / 4</strong><span id="freezeTriggerStatus" role="status">Live</span></div>
-            <p class="help-text">4/4 · 1/4 Note = 1 Beat. Der Taktanfang ist zunächst geschätzt; „Set Beat 1“ setzt den nächsten Beat auf den Taktanfang. Auto wartet auf ein stabiles Tempo oder verwendet den letzten stabilen Wert. Während Freeze bleibt dieses Tempo fest; eine manuelle Tempo- oder Längenänderung nimmt am nächsten Rasterpunkt einen neuen Loop auf.</p>
+            <p class="help-text">4/4 · 1/4 Note = 1 Beat. Bei einer Quantisierung ab 1 Bar wartet Freeze auf „Set Beat 1“; damit wird der nächste Beat als Taktanfang bestätigt. Auto wartet auf ein stabiles Tempo und folgt bestätigten Tempoänderungen. Bei aktivem Freeze wird dafür am nächsten Rasterpunkt ein neuer Loop aufgenommen.</p>
             <details class="freeze-debug"><summary>Sync Debug</summary><dl>
+              <div><dt>Analysis runtime</dt><dd data-sync-debug="analysisRuntime">—</dd></div>
+              <div><dt>Detector input RMS</dt><dd data-sync-debug="analysisRms">—</dd></div>
+              <div><dt>Worker packets sent / received</dt><dd data-sync-debug="analysisPackets">—</dd></div>
+              <div><dt>Last worker reply</dt><dd data-sync-debug="analysisReply">—</dd></div>
+              <div><dt>Onsets / BPM candidates</dt><dd data-sync-debug="analysisCandidates">—</dd></div>
+              <div><dt>Detection decision</dt><dd data-sync-debug="analysisDecision">—</dd></div>
               <div><dt>Detected BPM</dt><dd data-sync-debug="detectedBpm">—</dd></div>
               <div><dt>Stable BPM</dt><dd data-sync-debug="stableBpm">—</dd></div>
               <div><dt>Clock BPM</dt><dd data-sync-debug="clockBpm">—</dd></div>
@@ -165,10 +170,10 @@
       </section>
       <section class="processing-module" data-collapsible="transient">
         <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Transient Shaper</span><small>Attack / Sustain</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="transientEnabled" type="checkbox" role="switch" aria-label="transientEnabled"><span class="module-power-state">OFF</span></label></div>
-        <div class="module-content"><div class="control-grid">
+        <div class="module-content compact-visual-layout"><div class="control-grid">
           <label class="control">Attack <output id="transientAttackValue">0 %</output><input id="transientAttack" type="range" min="-100" max="100" step="1" value="0"><div class="range-labels"><span>weicher</span><span>härter</span></div></label>
           <label class="control">Sustain <output id="transientSustainValue">0 %</output><input id="transientSustain" type="range" min="-100" max="100" step="1" value="0"><div class="range-labels"><span>kürzer</span><span>länger</span></div></label>
-        </div></div>
+        </div><div class="module-visual compact-module-visual"><canvas id="transientCanvas" aria-label="Transient Eingangs- und Ausgangshüllkurve"></canvas><output id="transientVisualValue">In — · Out —</output></div></div>
       </section>
       <section class="processing-module" data-collapsible="drive">
         <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Drive</span><small>Saturation</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="driveEnabled" type="checkbox" role="switch" aria-label="driveEnabled" checked><span class="module-power-state">ON</span></label></div>
@@ -213,14 +218,14 @@
           <label class="control">Fold <output id="wavefolderFoldValue">25 %</output><input id="wavefolderFold" type="range" min="0" max="100" step="1" value="25"><div class="range-labels"><span>clean</span><span>complex</span></div></label>
           <label class="control">Symmetry / Bias <output id="wavefolderBiasValue">0 %</output><input id="wavefolderBias" type="range" min="-100" max="100" step="1" value="0"><div class="range-labels"><span>-100 %</span><span>+100 %</span></div></label>
           <label class="control">Output Gain <output id="wavefolderOutputValue">+0.0 dB</output><input id="wavefolderOutput" type="range" min="-12" max="6" step="0.1" value="0"><div class="range-labels"><span>-12 dB</span><span>+6 dB</span></div></label>
-        </div><div class="compressor-visual module-visual" aria-label="Compressor Transfer und Gain Reduction"><canvas id="compressorCanvas"></canvas><output id="compressorReductionValue">GR: 0.0 dB</output></div></div>
+        </div><div class="compact-module-visual module-visual" aria-label="Wavefolder Transferkurve"><canvas id="wavefolderCanvas"></canvas><output>Aktuelle Transferkurve</output></div></div>
       </section>
       <section class="processing-module" data-collapsible="crusher">
         <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Bitcrusher / Sample Rate Reduction</span><small>Digital</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="crusherEnabled" type="checkbox" role="switch" aria-label="crusherEnabled"><span class="module-power-state">OFF</span></label></div>
         <div class="module-content"><div class="control-grid">
           <label class="control check-control"><span>Bit Crush</span><input id="bitEnabled" type="checkbox" role="switch" aria-label="bitEnabled" checked><span class="check-state">ON/OFF</span></label>
           <label class="control check-control"><span>Sample Rate Reduction</span><input id="rateEnabled" type="checkbox" role="switch" aria-label="rateEnabled" checked><span class="check-state">ON/OFF</span></label>
-          <label class="control">Bit Depth <output id="bitDepthValue">8 bit</output><input id="bitDepth" type="range" min="2" max="16" step="1" value="8"><div class="range-labels"><span>2 bit</span><span>16 bit</span></div></label>
+          <label class="control">Bit Depth <output id="bitDepthValue">8 bit</output><input id="bitDepth" type="range" min="0" max="12" step="0.01" value="6"><div class="range-labels"><span>2 bit</span><span>16 bit</span></div></label>
           <label class="control">Reduction Amount <output id="rateReductionValue">35 %</output><input id="rateReduction" type="range" min="0" max="0.95" step="0.01" value="0.35"><div class="range-labels"><span>original</span><span>reduced</span></div></label>
         </div></div>
       </section>
@@ -332,30 +337,32 @@
 
       <section class="processing-module" data-collapsible="compressor">
         <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Compressor Light</span><small>Single Band</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="compressorEnabled" type="checkbox" role="switch" aria-label="compressorEnabled"><span class="module-power-state">OFF</span></label></div>
-        <div class="module-content"><div class="control-grid">
+        <div class="module-content compressor-layout"><div class="control-grid">
           <label class="control">Threshold <output id="compressorThresholdValue">-18.0 dB</output><input id="compressorThreshold" type="range" min="-60" max="0" step="0.5" value="-18"><div class="range-labels"><span>-60 dB</span><span>0 dB</span></div></label>
           <label class="control">Ratio <output id="compressorRatioValue">4.0:1</output><input id="compressorRatio" type="range" min="1" max="20" step="0.1" value="4"><div class="range-labels"><span>1:1</span><span>20:1</span></div></label>
           <label class="control">Attack <output id="compressorAttackValue">10 ms</output><input id="compressorAttack" type="range" min="1" max="100" step="1" value="10"><div class="range-labels"><span>fast</span><span>slow</span></div></label>
           <label class="control">Release <output id="compressorReleaseValue">120 ms</output><input id="compressorRelease" type="range" min="20" max="1000" step="5" value="120"><div class="range-labels"><span>20 ms</span><span>1 s</span></div></label>
           <label class="control">Makeup Gain <output id="compressorMakeupValue">+0.0 dB</output><input id="compressorMakeup" type="range" min="-12" max="12" step="0.1" value="0"><div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div></label>
-        </div></div>
+        </div><div class="compressor-visual module-visual" aria-label="Compressor Transfer und Gain Reduction"><canvas id="compressorCanvas"></canvas><output id="compressorReductionValue">GR: 0.0 dB</output></div></div>
       </section>
       <section class="processing-module" data-collapsible="width">
         <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Stereo Width</span><small>Mid / Side</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="widthEnabled" type="checkbox" role="switch" aria-label="widthEnabled"><span class="module-power-state">OFF</span></label></div>
-        <div class="module-content"><div class="control-grid">
+        <div class="module-content"><div class="control-grid width-controls">
           <label class="control">Width <output id="widthValue">100 %</output><input id="width" type="range" min="0" max="200" step="1" value="100"><div class="range-labels"><span>Mono</span><span>200 % wide</span></div></label>
+          <label class="control">Crossover <output id="widthMonoBassFrequencyValue">120 Hz</output><input id="widthMonoBassFrequency" type="range" min="40" max="300" step="1" value="120"><div class="range-labels"><span>40 Hz</span><span>300 Hz</span></div></label>
+          <label class="control check-control"><span>Mono Bass</span><input id="widthMonoBass" type="checkbox" role="switch" aria-label="Mono Bass"><span class="check-state">ON/OFF</span></label>
         </div></div>
       </section>
       <section class="processing-module" data-collapsible="clipper">
         <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Soft Clipper / Limiter</span><small>Safety Tone</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="clipperEnabled" type="checkbox" role="switch" aria-label="clipperEnabled"><span class="module-power-state">OFF</span></label></div>
-        <div class="module-content"><div class="control-grid">
+        <div class="module-content compact-visual-layout"><div class="control-grid">
           <label class="control">Mode<select id="clipperMode" class="inline-select"><option value="softclip" selected>Soft Clip</option><option value="limiter">Limiter</option></select></label>
           <label class="control">Threshold <output id="clipperThresholdValue">-3.0 dB</output><input id="clipperThreshold" type="range" min="-24" max="0" step="0.5" value="-3"><div class="range-labels"><span>-24 dB</span><span>0 dB</span></div></label>
           <label class="control">Amount <output id="clipperAmountValue">25 %</output><input id="clipperAmount" type="range" min="0" max="1" step="0.01" value="0.25"><div class="range-labels"><span>soft</span><span>strong</span></div></label>
           <label class="control">Output Ceiling <output id="clipperCeilingValue">-1.0 dBFS</output><input id="clipperCeiling" type="range" min="-12" max="-0.1" step="0.1" value="-1"><div class="range-labels"><span>-12 dBFS</span><span>-0.1 dBFS</span></div></label>
           <label class="control">Release <output id="clipperReleaseValue">100 ms</output><input id="clipperRelease" type="range" min="20" max="1000" step="5" value="100"><div class="range-labels"><span>20 ms</span><span>1 s</span></div></label>
           <output id="clipperActivityValue" class="module-activity">Activity: 0.0 dB</output>
-        </div></div>
+        </div><div class="module-visual compact-module-visual"><canvas id="clipperCanvas" aria-label="Soft Clip oder Limiter Kennlinie und Aktivität"></canvas><output id="clipperVisualValue">In — · Out — · GR 0.0 dB</output></div></div>
       </section>
 
       <div class="switch-row"><div class="switches"><label class="switch-label"><input id="bypass" type="checkbox"><span class="switch"></span> Global Bypass</label></div></div>

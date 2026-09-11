@@ -18,7 +18,7 @@ export const ADAPTERS = {
   filter: { create: c => new FilterProcessor(c), settings: p => ({ type: p.filterType, frequency: p.cutoff, resonance: p.resonance, peakGain: p.filterPeakGain, bypass: !p.filterEnabled }) },
   eq: { create: c => new EQProcessor(c), settings: p => ({ type: p.eqType, low: p.eqLow, mid: p.eqMid, high: p.eqHigh, tilt: p.eqTilt, graphic: [0, 1, 2, 3, 4].map(i => p['eqGraphic' + i]), bypass: !p.eqEnabled }) },
   compressor: { create: c => new CompressorProcessor(c), settings: p => ({ enabled: p.compressorEnabled, threshold: p.compressorThreshold, ratio: p.compressorRatio, attack: p.compressorAttack, release: p.compressorRelease, makeup: p.compressorMakeup }) },
-  width: { create: c => new StereoWidthProcessor(c), settings: p => ({ enabled: p.widthEnabled, width: p.width }) },
+  width: { create: c => new StereoWidthProcessor(c), settings: p => ({ enabled: p.widthEnabled, width: p.width, monoBass: p.widthMonoBass, monoBassFrequency: p.widthMonoBassFrequency }) },
   clipper: { create: c => new ClipperLimiterProcessor(c), settings: p => ({ enabled: p.clipperEnabled, mode: p.clipperMode, threshold: p.clipperThreshold, amount: p.clipperAmount, ceiling: p.clipperCeiling, release: p.clipperRelease }) }
 };
 

@@ -35,12 +35,21 @@ class CrossfadeProcessor {
   }
 }
 
-function wavefold(value, fold, bias) {
+export function wavefold(value, fold, bias) {
   const amount = 1 + fold * 8;
   const shifted = value * amount + bias * fold * 1.2;
   const wrapped = ((shifted + 1) % 4 + 4) % 4 - 1;
   const triangle = wrapped <= 1 ? wrapped : 2 - wrapped;
   return clamp(triangle, -1, 1);
+}
+
+export function wavefolderTransferCurve(settings = {}, points = 257) {
+  const fold = clamp(Number(settings.fold ?? settings.wavefolderFold ?? 25), 0, 100) / 100;
+  const bias = clamp(Number(settings.bias ?? settings.wavefolderBias ?? 0), -100, 100) / 100;
+  const output = dbToGain(clamp(Number(settings.output ?? settings.wavefolderOutput ?? 0), -12, 6));
+  const pre = 1 + fold * 1.5, zero = wavefold(0, fold, bias);
+  const transfer = value => fold < .001 ? value * output : (wavefold(clamp(value * pre, -1, 1), fold, bias) - zero) / (1 + Math.abs(zero)) * output;
+  return Array.from({ length: points }, (_, index) => { const x = index / (points - 1) * 2 - 1; return [x, transfer(x)]; });
 }
 
 export class WavefolderProcessor extends CrossfadeProcessor {
@@ -79,6 +88,7 @@ export class WavefolderProcessor extends CrossfadeProcessor {
     this.postGain.gain.setTargetAtTime(dbToGain(output), this.context.currentTime, 0.03);
     this.setEnabled(settings.enabled ?? this.enabled, 0.03);
   }
+  getTransferCurve() { return { curve: wavefolderTransferCurve(this.settings), ...this.settings }; }
 }
 
 export class CompressorProcessor extends CrossfadeProcessor {
@@ -120,6 +130,9 @@ export class StereoWidthProcessor extends CrossfadeProcessor {
     this.sideR = context.createGain();
     this.mid = context.createGain();
     this.side = context.createGain();
+    this.sideDirect = context.createGain();
+    this.sideHighpass = context.createBiquadFilter();
+    this.sideFiltered = context.createGain();
     this.midOutL = context.createGain();
     this.midOutR = context.createGain();
     this.sideOutL = context.createGain();
@@ -130,7 +143,9 @@ export class StereoWidthProcessor extends CrossfadeProcessor {
     this.midL.connect(this.mid); this.midR.connect(this.mid);
     this.sideL.connect(this.side); this.sideR.connect(this.side);
     this.mid.connect(this.midOutL); this.mid.connect(this.midOutR);
-    this.side.connect(this.sideOutL); this.side.connect(this.sideOutR);
+    this.side.connect(this.sideDirect); this.side.connect(this.sideHighpass);
+    this.sideDirect.connect(this.sideOutL); this.sideDirect.connect(this.sideOutR);
+    this.sideHighpass.connect(this.sideFiltered); this.sideFiltered.connect(this.sideOutL); this.sideFiltered.connect(this.sideOutR);
     this.midOutL.connect(this.merger, 0, 0); this.sideOutL.connect(this.merger, 0, 0);
     this.midOutR.connect(this.merger, 0, 1); this.sideOutR.connect(this.merger, 0, 1);
     this.merger.connect(this.wetGain);
@@ -138,16 +153,22 @@ export class StereoWidthProcessor extends CrossfadeProcessor {
     this.sideL.gain.value = 0.5; this.sideR.gain.value = -0.5;
     this.midOutL.gain.value = 1; this.midOutR.gain.value = 1;
     this.sideOutL.gain.value = 1; this.sideOutR.gain.value = -1;
-    this.internalNodes = [this.splitter, this.merger, this.midL, this.midR, this.sideL, this.sideR, this.mid, this.side, this.midOutL, this.midOutR, this.sideOutL, this.sideOutR];
-    this.settings = { width: 100 };
+    this.sideHighpass.type = 'highpass'; this.sideHighpass.frequency.value = 120; this.sideHighpass.Q.value = Math.SQRT1_2;
+    this.sideDirect.gain.value = 1; this.sideFiltered.gain.value = 0;
+    this.internalNodes = [this.splitter, this.merger, this.midL, this.midR, this.sideL, this.sideR, this.mid, this.side, this.sideDirect, this.sideHighpass, this.sideFiltered, this.midOutL, this.midOutR, this.sideOutL, this.sideOutR];
+    this.settings = { width: 100, monoBass: false, monoBassFrequency: 120 };
     this.update();
   }
 
   update(settings = {}) {
     Object.assign(this.settings, settings);
     const width = clamp(Number(this.settings.width), 0, 200) / 100;
+    const monoBass = Boolean(this.settings.monoBass), frequency = clamp(Number(this.settings.monoBassFrequency), 40, 300);
     this.sideOutL.gain.setTargetAtTime(width, this.context.currentTime, 0.03);
     this.sideOutR.gain.setTargetAtTime(-width, this.context.currentTime, 0.03);
+    this.sideDirect.gain.setTargetAtTime(monoBass ? 0 : 1, this.context.currentTime, 0.03);
+    this.sideFiltered.gain.setTargetAtTime(monoBass ? 1 : 0, this.context.currentTime, 0.03);
+    this.sideHighpass.frequency.setTargetAtTime(frequency, this.context.currentTime, 0.03);
     this.setEnabled(settings.enabled ?? this.enabled, 0.03);
   }
 }

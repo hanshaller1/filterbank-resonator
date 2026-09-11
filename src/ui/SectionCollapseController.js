@@ -1,9 +1,12 @@
 const STORAGE_KEY = 'syntakt-ui-layout-v1';
+const REMOVED_KEYS = new Set(['lfo1', 'lfo2', 'envelope1', 'envelope2']);
 
 const readLayout = storage => {
   try {
     const value = JSON.parse(storage.getItem(STORAGE_KEY) || '{}');
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    for (const key of REMOVED_KEYS) delete value[key];
+    return value;
   } catch { return {}; }
 };
 
@@ -12,6 +15,9 @@ const isInteractive = target => Boolean(target.closest('button, input, select, t
 export class SectionCollapseController {
   constructor(root = document, storage = localStorage) {
     this.root = root; this.storage = storage; this.layout = readLayout(storage); this.items = new Map();
+    // Rewrite legacy layouts once so removed per-source collapse states do not
+    // survive in persistence while the parent Modulation state remains intact.
+    try { this.storage.setItem(STORAGE_KEY, JSON.stringify(this.layout)); } catch {}
     this.events = new AbortController();
     this.scan();
     this.root.addEventListener('click', event => {

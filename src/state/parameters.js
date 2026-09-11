@@ -1,5 +1,6 @@
 // Canonical parameter domains. UI, snapshots and control sources share these definitions.
 const definitions = [];
+const BIT_DEPTH_CONTROL_MAP = Object.freeze([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16]);
 const number = (id, module, displayName, min, max, value, unit = '', extra = {}) =>
   definitions.push({ id, module, displayName, type: 'number', min, max, default: value, unit, scaling: 'linear', morphable: true, modulatable: false, smoothing: 0.025, control: id, ...extra });
 const toggle = (id, module, value, extra = {}) =>
@@ -9,21 +10,20 @@ const choice = (id, module, values, value, extra = {}) =>
 
 number('inputGain', 'input', 'Input Gain', -24, 12, 0, 'dB');
 number('outputGain', 'output', 'Output Gain', -24, 6, -6, 'dB');
-toggle('outputMute', 'output', false, { control: 'mute' });
 toggle('bypass', 'mix', false);
 number('dryWet', 'mix', 'Dry / Wet', 0, 1, 1, '%', { uiScale: 100, modulatable: true });
 number('wetGain', 'mix', 'Wet Gain', -24, 12, 0, 'dB', { modulatable: true });
 toggle('autoGain', 'mix', false);
 toggle('freezeEnabled', 'freeze', false);
-choice('freezeMode', 'freeze', ['free', 'sync'], 'free');
+choice('freezeMode', 'freeze', ['free', 'sync'], 'free', { controlEvent: 'change' });
 number('freezeFreeLength', 'freeze', 'Length', 0, 20, .25, 's', { uiScale: 1000 });
-choice('freezeSyncLength', 'freeze', ['quarter', 'half', 'beat', '2beats', '1bar', '2bars', '4bars', '8bars'], '1bar');
-choice('freezeBpmMode', 'freeze', ['auto', 'manual'], 'auto');
+choice('freezeSyncLength', 'freeze', ['quarter', 'half', 'beat', '2beats', '1bar', '2bars', '4bars', '8bars'], '1bar', { controlEvent: 'change' });
+choice('freezeBpmMode', 'freeze', ['auto', 'manual'], 'auto', { controlEvent: 'change' });
 number('freezeManualBpm', 'freeze', 'Manual BPM', 40, 240, 120, 'BPM', { morphable: false, controlEvent: 'change' });
 toggle('freezeTempoLocked', 'freeze', false, { control: null });
 number('freezeLockedBpm', 'freeze', 'Locked BPM', 40, 240, 120, 'BPM', { morphable: false, control: null });
-choice('freezeStartQuantize', 'freeze', ['auto', '1/32', '1/16', '1/8', '1/4', '1/2', 'beat', '2beats', '1bar', '2bars', '4bars'], 'auto');
-choice('freezeReleaseQuantize', 'freeze', ['off', 'beat', 'bar'], 'off');
+choice('freezeStartQuantize', 'freeze', ['auto', '1/32', '1/16', '1/8', '1/4', '1/2', 'beat', '2beats', '1bar', '2bars', '4bars'], 'auto', { controlEvent: 'change' });
+choice('freezeReleaseQuantize', 'freeze', ['off', 'beat', 'bar'], 'off', { controlEvent: 'change' });
 toggle('gateEnabled', 'gate', false);
 choice('gateMode', 'gate', ['gate', 'expander'], 'gate');
 number('gateThreshold', 'gate', 'Threshold', -80, 0, -45, 'dB', { modulatable: true });
@@ -46,7 +46,7 @@ number('wavefolderOutput', 'wavefolder', 'Output', -12, 6, 0, 'dB', { modulatabl
 toggle('crusherEnabled', 'crusher', false);
 toggle('bitEnabled', 'crusher', true);
 toggle('rateEnabled', 'crusher', true);
-number('bitDepth', 'crusher', 'Bit Depth', 2, 16, 8, 'bit', { integer: true, modulatable: true });
+number('bitDepth', 'crusher', 'Bit Depth', 2, 16, 8, 'bit', { modulatable: true, controlMap: BIT_DEPTH_CONTROL_MAP });
 number('rateReduction', 'crusher', 'Reduction', 0, .95, .35, '', { modulatable: true });
 toggle('filterEnabled', 'filter', true);
 choice('filterType', 'filter', ['lowpass', 'highpass', 'bandpass', 'notch', 'peak', 'allpass', 'feedforwardComb', 'feedbackComb', 'formant'], 'lowpass');
@@ -66,6 +66,8 @@ number('compressorRelease', 'compressor', 'Release', 20, 1000, 120, 'ms', { modu
 number('compressorMakeup', 'compressor', 'Makeup', -12, 12, 0, 'dB', { modulatable: true });
 toggle('widthEnabled', 'width', false);
 number('width', 'width', 'Stereo Width', 0, 200, 100, '%', { modulatable: true });
+toggle('widthMonoBass', 'width', false);
+number('widthMonoBassFrequency', 'width', 'Mono Bass Crossover', 40, 300, 120, 'Hz', { scaling: 'log' });
 toggle('clipperEnabled', 'clipper', false);
 choice('clipperMode', 'clipper', ['softclip', 'limiter'], 'softclip');
 number('clipperThreshold', 'clipper', 'Threshold', -24, 0, -3, 'dB', { modulatable: true });
@@ -108,10 +110,24 @@ export function fromNormalized(p, value) {
 export function fromControl(p, control) {
   if (p.type === 'boolean') return control.type === 'checkbox' ? control.checked : control.getAttribute('aria-pressed') !== 'true';
   if (p.uiLog) return fromNormalized(p, Number(control.value) / p.uiLog);
+  if (p.controlMap) {
+    const position = clamp(Number(control.value), 0, p.controlMap.length - 1);
+    const index = Math.min(p.controlMap.length - 2, Math.floor(position));
+    const fraction = position - index;
+    return p.controlMap[index] + (p.controlMap[index + 1] - p.controlMap[index]) * fraction;
+  }
   return p.type === 'number' ? Number(control.value) / (p.uiScale || 1) : control.value;
 }
 export function toControl(p, value) {
   if (p.uiLog) return toNormalized(p, value) * p.uiLog;
+  if (p.controlMap) {
+    const target = clamp(Number(value), p.min, p.max);
+    for (let index = 0; index < p.controlMap.length - 1; index += 1) {
+      const low = p.controlMap[index], high = p.controlMap[index + 1];
+      if (target >= low && target <= high) return index + (target - low) / Math.max(1e-9, high - low);
+    }
+    return target <= p.controlMap[0] ? 0 : p.controlMap.length - 1;
+  }
   return p.type === 'number' ? value * (p.uiScale || 1) : value;
 }
 export function viewSettings(parameters) {

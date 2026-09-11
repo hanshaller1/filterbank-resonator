@@ -8,6 +8,7 @@ import { FilterResponseVisualization } from './ui/FilterResponseVisualization.js
 import { EQResponseVisualization } from './ui/EQResponseVisualization.js';
 import { DriveCurveVisualization } from './ui/DriveCurveVisualization.js';
 import { CompressorVisualization } from './ui/CompressorVisualization.js';
+import { WavefolderVisualization, TransientVisualization, ClipperVisualization } from './ui/ModuleVisualizations.js';
 import { MacroPanel } from './ui/MacroPanel.js';
 import { ModulationPanelV2 } from './ui/ModulationPanelV2.js';
 import { ProcessingList } from './ui/ProcessingList.js';
@@ -20,7 +21,7 @@ import { PresetStore, SessionPersistence, loadSession } from './state/PresetStor
 import { loadDevices, saveDevices } from './state/DeviceState.js';
 
 import { AppState, readLegacyState } from './state/AppState.js';
-import { PARAMETERS, fromControl } from './state/parameters.js';
+import { PARAMETERS, fromControl, fromNormalized } from './state/parameters.js';
 const store = new AppState();
 store.restoreState(loadSession(localStorage, () => readLegacyState(localStorage)));
 const ui = new UI(store);
@@ -30,7 +31,17 @@ const freezeSyncPanel = new FreezeSyncPanel(store, engine, document.getElementBy
 const processingList = new ProcessingList(store, engine);
 const macroPanel = new MacroPanel(store, document.getElementById('macroPanel'), document.getElementById('performanceMode'));
 const modulationPanel = new ModulationPanelV2(store, document.getElementById('modulationPanel'));
-engine.onModulationVisuals = value => { modulationPanel.updateVisuals(value); visualization?.setModulationVisuals(value); visualization2?.setModulationVisuals(value); };
+let effectiveVisualSettings = { ...store.state.parameters };
+engine.onModulationVisuals = value => {
+  modulationPanel.updateVisuals(value); visualization?.setModulationVisuals(value); visualization2?.setModulationVisuals(value);
+  effectiveVisualSettings = { ...store.state.parameters };
+  for (const [id, normalized] of Object.entries(value?.values || {})) {
+    if (PARAMETERS[id]?.type === 'number' && Number.isFinite(normalized)) effectiveVisualSettings[id] = fromNormalized(PARAMETERS[id], normalized);
+  }
+  compressorVisualization?.setSettings(effectiveVisualSettings);
+  transientVisualization?.setSettings(effectiveVisualSettings);
+  clipperVisualization?.setSettings(effectiveVisualSettings);
+};
 const snapshotPanel = new SnapshotPanel(store, document.getElementById('snapshotPanel'));
 const presetPanel = new PresetPanel(store, new PresetStore(localStorage), document.getElementById('presetPanel'), (text, error) => ui.setMessage(text, error));
 addComponentTooltips(document);
@@ -68,6 +79,9 @@ const filterResponse = new FilterResponseVisualization(ui.elements.filterRespons
 const eqResponse = new EQResponseVisualization(ui.elements.eqResponseCanvas);
 const driveCurve = new DriveCurveVisualization(document.getElementById('driveCurveCanvas'));
 const compressorVisualization = new CompressorVisualization(document.getElementById('compressorCanvas'), ui.elements.compressorReductionValue);
+const wavefolderVisualization = new WavefolderVisualization(document.getElementById('wavefolderCanvas'));
+const transientVisualization = new TransientVisualization(document.getElementById('transientCanvas'), document.getElementById('transientVisualValue'));
+const clipperVisualization = new ClipperVisualization(document.getElementById('clipperCanvas'), document.getElementById('clipperVisualValue'));
 engine.onInputEnded = () => { stop(); ui.setMessage('Audioeingang wurde getrennt. Gerät auswählen und Audio neu starten.', true); refreshDevices().catch(error => ui.setMessage(errorMessage(error), true)); };
 const deviceState = loadDevices(localStorage);
 let selectedInputId = deviceState.input;
@@ -120,14 +134,18 @@ async function start() {
   } catch (error) { engine.stop(); ui.setStatus(false, engine.context?.state || '—'); ui.setMessage(errorMessage(error), true); }
 }
 
-function stop() { engine.stop(); freezeSyncPanel.update(null); ui.setStatus(false, engine.context?.state || '—'); ui.setMessage('Audio gestoppt.'); ui.setMeters({ input: 0, output: 0 }); compressorVisualization.render(0, false); driveCurve.render(null, false); visualization.render(null, null); visualization2.render(null, null); }
+function stop() { engine.stop(); freezeSyncPanel.update(null); ui.setStatus(false, engine.context?.state || '—'); ui.setMessage('Audio gestoppt.'); ui.setMeters({ input: 0, output: 0 }); compressorVisualization.render(0, false); transientVisualization.render({}, false); clipperVisualization.render({}, false); driveCurve.render(null, false); visualization.render(null, null); visualization2.render(null, null); }
 
 function renderState() {
   const settings = ui.render();
+  effectiveVisualSettings = { ...settings };
   filterResponse.render(settings);
   eqResponse.render(settings);
   compressorVisualization.setSettings(settings);
   compressorVisualization.render(engine.getGainReduction().compressor, settings.compressorEnabled);
+  transientVisualization.setSettings(settings); transientVisualization.render({}, settings.transientEnabled);
+  clipperVisualization.setSettings(settings); clipperVisualization.render({}, settings.clipperEnabled);
+  wavefolderVisualization.render(null, settings, settings.wavefolderEnabled);
   driveCurve.render(engine.getTransferCurve(), settings.driveEnabled);
   visualization.setProcessingSettings(settings);
   visualization2.setProcessingSettings(settings);
@@ -169,6 +187,13 @@ function updateMeters() {
     const dynamics = engine.getGainReduction();
     ui.setFreezeTempo(tempo); freezeSyncPanel.update(tempo); modulationPanel.setTempo(tempo);
     ui.setClipperActivity(engine.getClipperActivity());
+    const moduleVisuals = engine.getModuleVisuals();
+    if (moduleVisuals) {
+      wavefolderVisualization.render(moduleVisuals.wavefolder, effectiveVisualSettings, effectiveVisualSettings.wavefolderEnabled);
+      transientVisualization.render(moduleVisuals.transient, effectiveVisualSettings.transientEnabled);
+      compressorVisualization.render(moduleVisuals.compressor, effectiveVisualSettings.compressorEnabled);
+      clipperVisualization.render(moduleVisuals.clipper, effectiveVisualSettings.clipperEnabled);
+    }
     const activeVisuals = [[analyzerWindow, visualization], [analyzerWindow2, visualization2]].filter(([window, panel]) => window.isVisible() && !panel.paused).map(([, panel]) => panel);
     if (activeVisuals.length) {
       visualization.setSourceRegistry(engine.getAnalyzerSources()); visualization2.setSourceRegistry(engine.getAnalyzerSources());
@@ -183,7 +208,6 @@ function updateMeters() {
       ui.setAutoGainCorrection(engine.updateAutoGain());
     }
     ui.setStatus(true, engine.context.state);
-    compressorVisualization.render(dynamics.compressor, store.state.parameters.compressorEnabled);
     driveCurve.render(engine.getTransferCurve(), store.state.parameters.driveEnabled);
     meterFrame = performance.now();
   }

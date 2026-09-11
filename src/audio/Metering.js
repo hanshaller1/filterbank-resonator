@@ -49,6 +49,13 @@ export class Metering {
     };
   }
 
+  readPeaks(names = []) {
+    return Object.fromEntries([...new Set(names)].map(name => {
+      const tap = this.capture(name, false);
+      return [name, this.peak(tap.timeData)];
+    }));
+  }
+
   sourceNames() { return Object.keys(this.taps); }
 
   readAnalysis(sources = ['output']) {

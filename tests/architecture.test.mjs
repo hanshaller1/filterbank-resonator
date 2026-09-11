@@ -28,14 +28,15 @@ test('Registry preserves routing, controls, semantic taps, bypass and clean star
   for (let i = 0; i < DEFAULT_ORDER.length - 1; i++) assert.ok(registry.get(DEFAULT_ORDER[i]).output.connections.some(([dest]) => dest === registry.get(DEFAULT_ORDER[i + 1]).input));
   for (const [id, tap] of [['drive', 'postDrive'], ['filter', 'postFilter'], ['eq', 'postEq']]) assert.ok(registry.get(id).output.connections.some(([dest]) => dest === metering.taps[tap].analyser));
   const count = engine.context.nodes.length, edges = registry.edges;
-  state.setParameters({ driveAmount: .7, eqHigh: 7, cutoff: 1500, gateEnabled: true, clipperEnabled: true, outputMute: true });
-  assert.equal(engine.nodes.outputMuteGain.gain.value, 0);
+  state.setParameters({ driveAmount: .7, eqHigh: 7, cutoff: 1500, gateEnabled: true, clipperEnabled: true });
+  assert.equal(PARAMETERS.outputMute, undefined);
+  assert.equal(engine.nodes.outputMuteGain, undefined);
   assert.equal(registry.get('drive').processor.settings.amount, .7);
   assert.equal(registry.get('eq').processor.settings.high, 7);
   assert.equal(registry.get('gate').enabled, true);
   assert.equal(engine.context.nodes.length, count);
   assert.equal(registry.edges, edges);
-  state.setParameters({ outputMute: false, dryWet: 0, wetGain: 12 });
+  state.setParameters({ dryWet: 0, wetGain: 12 });
   assert.equal(engine.nodes.wetGain.gain.value, 0); assert.equal(engine.nodes.dryGain.gain.value, 1);
   state.setParameters({ dryWet: 1, bypass: true });
   assert.equal(engine.nodes.wetGain.gain.value, 0); assert.equal(engine.nodes.dryGain.gain.value, 1);

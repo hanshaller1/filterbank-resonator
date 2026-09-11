@@ -7,6 +7,7 @@ import { OnsetEnvelope } from '../src/audio/freeze/OnsetEnvelope.js';
 import { TempoDetector } from '../src/audio/freeze/TempoDetector.js';
 import { BeatTracker } from '../src/audio/freeze/BeatTracker.js';
 import { AppState } from '../src/state/AppState.js';
+import { PARAMETERS } from '../src/state/parameters.js';
 import { encodePreset, decodePreset } from '../src/state/schema.js';
 const near = (a, b, epsilon = 1e-6) => assert.ok(Math.abs(a - b) < epsilon, `${a} ≈ ${b}`);
 
@@ -62,7 +63,7 @@ test('Captured stereo pages survive continuous ring overwrites and repeated capt
   assert.ok(engine.history.pages.every(p => p.refs === 0));
 });
 
-test('Start/release are scheduled, pending commands cancel, and raw tempo updates cannot recapture a loop', () => {
+test('Start/release are scheduled, pending commands cancel, and stable Auto tempo updates recapture a loop', () => {
   const engine = new FreezeEngine(1000, 10), sync = new FreezeSyncController(1000, engine);
   const left = new Float32Array(1), right = new Float32Array(1); let frame = 0;
   const advance = end => { for (; frame < end; frame++) { sync.tick(frame); engine.processSample(frame, .25, -.5, left, right, 0); } };
@@ -74,14 +75,15 @@ test('Start/release are scheduled, pending commands cancel, and raw tempo update
   advance(3501); assert.equal(engine.frozen, true); assert.equal(engine.active.playFrame, 3500);
   const captures = engine.captures;
   sync.onAnalysis({ tempo: { detectedBpm: 121.8, stableBpm: 121.7, confidence: .9, status: 'Stable' }, beat: { referenceTime: 3.6, confidence: 1 } }, frame);
-  assert.equal(engine.captures, captures); assert.equal(sync.clock.bpm, 120);
+  assert.equal(engine.captures, captures); assert.equal(sync.clock.bpm, 121.7); assert.ok(sync.pending);
   sync.configure({ tempoLocked: true, lockedBpm: 120 }, frame);
-  assert.equal(sync.pending, null); assert.equal(engine.captures, captures);
+  assert.ok(sync.pending); assert.equal(engine.captures, captures);
   sync.configure({ tempoLocked: false }, frame);
-  assert.equal(sync.pending, null); assert.equal(sync.clock.bpm, 120);
+  assert.ok(sync.pending); assert.equal(sync.clock.bpm, 121.7);
+  const releaseAt = Math.ceil(sync.clock.nextGridFrame('1bar', frame));
   sync.configure({ frozen: false, releaseQuantize: 'bar' }, frame);
-  near(sync.pending.atFrame, 4000); advance(4000); assert.equal(engine.frozen, true);
-  advance(4001); assert.equal(engine.frozen, false);
+  near(sync.pending.atFrame, sync.clock.nextGridFrame('1bar', frame)); advance(releaseAt); assert.equal(engine.frozen, true);
+  advance(releaseAt + 1); assert.equal(engine.frozen, false);
   sync.configure({ frozen: true }, frame); assert.ok(sync.pending);
   sync.configure({ frozen: false }, frame); assert.equal(sync.pending, null);
   advance(4600); assert.equal(engine.frozen, false);
@@ -101,8 +103,52 @@ test('No tempo and insufficient history leave live audio intact; manual BPM unbl
   for (let n = 0; n < 200; n++) { sync.tick(n); engine.processSample(n, .6, -.25, left, right, 0); }
   near(left[0], .6); near(right[0], -.25);
   sync.configure({ bpmMode: 'manual', manualBpm: 100 }, 200);
-  assert.equal(sync.clock.bpm, 100); assert.equal(sync.status, 'Buffering'); assert.ok(sync.pending.atFrame > 2400);
+  assert.equal(sync.clock.bpm, 100); assert.equal(sync.status, 'Waiting for Beat 1'); assert.equal(sync.pending, null);
+  sync.setBeat1(200);
+  assert.equal(sync.status, 'Buffering'); assert.ok(sync.pending.atFrame > 2400);
   sync.configure({ mode: 'free' }, 201); assert.equal(sync.pending, null); assert.equal(engine.frozen, false);
+});
+
+test('Bar-quantized Freeze waits for Set Beat 1 and Auto tempo changes schedule a new capture', () => {
+  const engine = new FreezeEngine(1000, 20), sync = new FreezeSyncController(1000, engine);
+  const left = new Float32Array(1), right = new Float32Array(1);
+  for (let frame = 0; frame < 6000; frame++) engine.processSample(frame, .2, -.2, left, right, 0);
+  sync.configure({ mode: 'sync', bpmMode: 'auto', frozen: true, syncLength: '1bar', startQuantize: '1bar' }, 6000);
+  sync.onAnalysis({ tempo: { detectedBpm: 142, stableBpm: 142, confidence: .95, status: 'Stable' } }, 6000);
+  assert.equal(sync.status, 'Waiting for Beat 1'); assert.equal(sync.pending, null); assert.equal(engine.frozen, false);
+  sync.setBeat1(6000);
+  assert.ok(sync.pending); assert.equal(sync.status, 'Armed');
+  sync.tick(Math.ceil(sync.pending.atFrame)); assert.equal(engine.frozen, true);
+  const captures = engine.captures;
+  sync.onAnalysis({ tempo: { detectedBpm: 128, stableBpm: 128, confidence: .95, status: 'Stable' } }, 10000);
+  assert.equal(sync.clock.bpm, 128); assert.ok(sync.pending); assert.equal(engine.captures, captures);
+  sync.tick(Math.ceil(sync.pending.atFrame)); assert.equal(engine.captures, captures + 1);
+  assert.ok(Math.abs(sync.loopBpm - 128) < .001);
+  engine.dispose();
+});
+
+test('Auto tempo initializes directly and remains the effective source after Manual → Auto', () => {
+  const engine = new FreezeEngine(1000, 10), sync = new FreezeSyncController(1000, engine);
+  sync.configure({ mode: 'sync', bpmMode: 'auto' }, 0);
+  sync.onAnalysis({ tempo: { detectedBpm: 127.8, stableBpm: 128, confidence: .9, status: 'Stable' } }, 0);
+  assert.equal(sync.effectiveBpm, 128);
+  assert.equal(sync.clock.bpm, 128);
+
+  sync.configure({ frozen: true }, 10);
+  sync.configure({ bpmMode: 'manual', manualBpm: 92 }, 20);
+  assert.equal(sync.effectiveBpm, 92);
+  assert.equal(sync.clock.bpm, 92);
+  sync.configure({ bpmMode: 'auto' }, 30);
+  assert.equal(sync.effectiveBpm, 128);
+  assert.equal(sync.clock.bpm, 128);
+  assert.equal(sync.settings.manualBpm, 92);
+  engine.dispose();
+});
+
+test('Freeze select controls commit through change events', () => {
+  for (const id of ['freezeMode', 'freezeSyncLength', 'freezeBpmMode', 'freezeStartQuantize', 'freezeReleaseQuantize']) {
+    assert.equal(PARAMETERS[id].controlEvent, 'change', id);
+  }
 });
 
 function analyzeAudio(bpm, sampleRate, irregular = false) {
@@ -179,12 +225,55 @@ test('The real analysis Worker accepts audio batches and returns tempo/phase ove
   assert.equal(port.messages.at(-1).tempo.stableBpm, null);
 });
 
-test('Actual Sync AudioWorklet starts on its scheduled sample and preserves stereo independently of UI timers', async () => {
+test('Actual Sync AudioWorklet detects Auto BPM from its running input and reaches lock without Manual BPM', async () => {
   let Processor;
   globalThis.sampleRate = 48000; globalThis.currentFrame = 0;
   globalThis.AudioWorkletProcessor = class { constructor() { this.port = { messages: [], postMessage(message) { this.messages.push(message); } }; } };
   globalThis.registerProcessor = (_, constructor) => { Processor = constructor; };
   await import('../src/audio/worklets/FreezeSyncWorklet.js');
+  const autoWorklet = new Processor(), detector = new TempoDetector();
+  let lastAnalysis = -Infinity, batches = 0;
+  const analysisPort = {
+    start() {}, close() {},
+    postMessage(message) {
+      if (message.type === 'reset') { detector.reset(); lastAnalysis = -Infinity; return; }
+      if (message.type !== 'envelope') return;
+      batches++; detector.ingest(message.batch);
+      const now = message.batch.at(-3);
+      if (now - lastAnalysis < .9) return;
+      lastAnalysis = now;
+      const tempo = detector.analyze(now);
+      this.onmessage({ data: { type: 'analysis', epoch: message.epoch, tempo, beat: new BeatTracker().analyze(detector.events, tempo.stableBpm, now) } });
+    }
+  };
+  autoWorklet.port.onmessage({ data: { type: 'connect-analysis', port: analysisPort } });
+  autoWorklet.port.onmessage({ data: { type: 'config', settings: { mode: 'sync', bpmMode: 'auto', frozen: true, syncLength: 'beat', startQuantize: 'beat' } } });
+  const autoInput = [[new Float32Array(128), new Float32Array(128)], []];
+  const autoOutput = [[new Float32Array(128), new Float32Array(128)]];
+  for (let block = 0; block < 48000 * 15 / 128; block++) {
+    for (let i = 0; i < 128; i++) {
+      const time = (globalThis.currentFrame + i) / 48000, age = time % .5;
+      const kick = Math.sin(2 * Math.PI * 65 * age) * Math.exp(-age * 35) * .65;
+      autoInput[0][0][i] = kick; autoInput[0][1][i] = -kick;
+    }
+    autoWorklet.process(autoInput, autoOutput); globalThis.currentFrame += 128;
+  }
+  assert.ok(batches > 0);
+  assert.ok(Number.isFinite(autoWorklet.sync.detection.detectedBpm));
+  near(autoWorklet.sync.detection.stableBpm, 120, .1);
+  assert.equal(autoWorklet.sync.clock.valid, true);
+  assert.notEqual(autoWorklet.sync.status, 'Waiting for tempo');
+  autoWorklet.port.onmessage({ data: { type: 'config', settings: { ...autoWorklet.sync.settings, tempoLocked: true, lockedBpm: autoWorklet.sync.detection.stableBpm } } });
+  assert.equal(autoWorklet.sync.info(globalThis.currentFrame).status, 'Locked');
+  autoWorklet.port.onmessage({ data: { type: 'dispose' } });
+});
+
+test('Actual Sync AudioWorklet starts on its scheduled sample and preserves stereo independently of UI timers', async () => {
+  let Processor;
+  globalThis.sampleRate = 48000; globalThis.currentFrame = 0;
+  globalThis.AudioWorkletProcessor = class { constructor() { this.port = { messages: [], postMessage(message) { this.messages.push(message); } }; } };
+  globalThis.registerProcessor = (_, constructor) => { Processor = constructor; };
+  await import('../src/audio/worklets/FreezeSyncWorklet.js?capture-test');
   const worklet = new Processor();
   worklet.port.onmessage({ data: { type: 'config', settings: { mode: 'sync', bpmMode: 'manual', manualBpm: 140, frozen: false, syncLength: 'beat', startQuantize: 'beat' } } });
   const input = [[new Float32Array(128).fill(.25), new Float32Array(128).fill(-.5)], [new Float32Array(128), new Float32Array(128)]];

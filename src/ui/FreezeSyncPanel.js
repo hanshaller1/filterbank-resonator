@@ -6,7 +6,9 @@ export class FreezeSyncPanel {
     const listen = (id, action) => root.querySelector('#' + id).addEventListener('click', action, { signal: this.events.signal });
     listen('freezeLockBpm', () => {
       if (store.state.parameters.freezeTempoLocked) store.setParameter('freezeTempoLocked', false);
-      else if (this.info?.valid && this.info.status === 'Stable' && this.info.confidence >= .72) store.setParameters({ freezeTempoLocked: true, freezeLockedBpm: this.info.bpm });
+      else if (this.info?.valid && Number.isFinite(this.info.stableBpm) && this.info.status === 'Stable' && this.info.confidence >= .72) {
+        store.setParameters({ freezeTempoLocked: true, freezeLockedBpm: this.info.stableBpm });
+      }
     });
     listen('freezeSetBeat1', () => engine.nodes?.registry.get('freeze').processor.setBeat1());
     root.querySelector('#freezeManualBpm').addEventListener('change', event => {
@@ -23,7 +25,7 @@ export class FreezeSyncPanel {
     lock.textContent = p.freezeTempoLocked ? 'Unlock BPM' : 'Lock BPM';
     lock.setAttribute('aria-pressed', String(p.freezeTempoLocked));
     lock.classList.toggle('active', p.freezeTempoLocked);
-    lock.disabled = p.freezeBpmMode === 'manual' || (!p.freezeTempoLocked && (!this.engine.active || !this.info?.valid || this.info.status !== 'Stable' || this.info.confidence < .72));
+    lock.disabled = p.freezeBpmMode === 'manual' || (!p.freezeTempoLocked && (!this.engine.active || !this.info?.valid || !Number.isFinite(this.info?.stableBpm) || this.info.status !== 'Stable' || this.info.confidence < .72));
     this.root.querySelector('#freezeSetBeat1').disabled = !this.engine.active || !this.info?.valid;
   }
   update(info) {
@@ -37,10 +39,19 @@ export class FreezeSyncPanel {
       beat: valid ? `${info.beat} / 4` : '—', bar: valid ? info.bar : '—', barReference: info?.barReference || 'Estimated',
       beatPhase: valid ? info.beatPhase.toFixed(4) : '—', nextBeatMs: valid ? ms(info.nextBeatMs) : '—', nextBarMs: valid ? ms(info.nextBarMs) : '—',
       triggerStatus: status, quantization: info?.quantization || p.freezeStartQuantize, release: p.freezeReleaseQuantize, loopBpm: fixed(info?.loopBpm) };
+    const analysis = info?.analysis;
+    Object.assign(values, {
+      analysisRuntime: analysis ? `${fixed(analysis.seconds)} s` : 'No diagnostic status received',
+      analysisRms: analysis ? analysis.rms > 0 ? `${fixed(20 * Math.log10(analysis.rms))} dBFS` : 'Silence' : '—',
+      analysisPackets: analysis ? `${analysis.batches} / ${analysis.replies} · ${analysis.connected ? 'connected' : 'not connected'}` : '—',
+      analysisReply: analysis?.replyAge != null ? `${fixed(analysis.replyAge)} s ago` : 'No reply',
+      analysisCandidates: analysis ? `${analysis.onsetCount ?? 0} / ${(analysis.candidates || []).map(fixed).join(', ') || 'none'}` : '—',
+      analysisDecision: analysis?.reason ? `${analysis.reason} · 8s: ${fixed(analysis.shortBpm)} / 16s: ${fixed(analysis.longBpm)}` : 'Waiting for worker analysis'
+    });
     for (const el of this.root.querySelectorAll('[data-sync-debug]')) el.textContent = values[el.dataset.syncDebug];
     if (p.freezeMode === 'sync') {
       const label = this.root.closest('[data-collapsible]').querySelector('.module-power-state');
-      const armed = ['Armed', 'Buffering', 'Waiting for tempo', 'Release armed'].includes(info?.triggerStatus);
+      const armed = ['Armed', 'Buffering', 'Waiting for tempo', 'Waiting for Beat 1', 'Release armed'].includes(info?.triggerStatus);
       label.textContent = armed ? info.triggerStatus === 'Release armed' ? 'RELEASING' : 'ARMED' : info?.frozen ? 'ON' : 'OFF';
       for (const button of document.querySelectorAll('[data-quick="freezeEnabled"]')) button.textContent = `Freeze${armed ? ' · ' + info.triggerStatus : ''}`;
     } else for (const button of document.querySelectorAll('[data-quick="freezeEnabled"]')) button.textContent = 'Freeze';

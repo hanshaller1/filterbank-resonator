@@ -11,6 +11,10 @@ export class FreezeSyncController {
     return this.settings.startQuantize === 'auto' ? (LOOP_BEATS[this.settings.syncLength] >= 4 ? '1bar' : 'beat') : this.settings.startQuantize;
   }
   get tempoMode() { return this.settings.bpmMode === 'manual' ? 'Manual' : this.settings.tempoLocked ? 'Locked' : 'Auto'; }
+  get effectiveBpm() {
+    const s = this.settings;
+    return s.bpmMode === 'manual' ? s.manualBpm : s.tempoLocked ? s.lockedBpm : this.detection.stableBpm;
+  }
   get duration() { return this.clock.framesPerBeat * (LOOP_BEATS[this.settings.syncLength] || 4); }
   configure(patch, frame) {
     const old = this.settings; this.settings = { ...old, ...patch };
@@ -27,7 +31,9 @@ export class FreezeSyncController {
     this.freePending = false;
     const tempoChanged = old.bpmMode !== s.bpmMode || old.manualBpm !== s.manualBpm || old.tempoLocked !== s.tempoLocked || old.lockedBpm !== s.lockedBpm;
     const previousBpm = this.clock.bpm;
-    if (tempoChanged || !this.clock.valid || old.mode !== 'sync') this.applyTempo(frame, s.bpmMode === 'manual' || s.tempoLocked);
+    const allowTempoChangeWhileFrozen = s.bpmMode === 'manual' || s.tempoLocked
+      || (old.bpmMode === 'manual' && s.bpmMode === 'auto') || (old.tempoLocked && !s.tempoLocked);
+    if (tempoChanged || !this.clock.valid || old.mode !== 'sync') this.applyTempo(frame, allowTempoChangeWhileFrozen);
     const clockChanged = Math.abs(previousBpm - this.clock.bpm) > .001;
     if (!s.frozen) {
       if (!this.engine.frozen) { this.pending = null; this.status = 'Live'; }
@@ -42,21 +48,27 @@ export class FreezeSyncController {
     if ((!this.engine.frozen && !this.pending) || clockChanged || old.syncLength !== s.syncLength || old.mode !== 'sync' || (this.pending && old.startQuantize !== s.startQuantize)) this.arm(frame);
   }
   applyTempo(frame, explicit = false) {
-    const s = this.settings;
-    let bpm = s.bpmMode === 'manual' ? s.manualBpm : s.tempoLocked ? s.lockedBpm : this.detection.stableBpm;
-    if (!Number.isFinite(bpm)) return;
-    if (!explicit && (this.engine.frozen || this.pending)) return;
-    if (!this.clock.valid || Math.abs(this.clock.bpm - bpm) > .001) this.clock.setBpm(bpm, frame);
+    const bpm = this.effectiveBpm;
+    if (!Number.isFinite(bpm)) return false;
+    if (!explicit && (this.engine.frozen || this.pending)) return false;
+    if (!this.clock.valid || Math.abs(this.clock.bpm - bpm) > .001) return this.clock.setBpm(bpm, frame);
+    return false;
   }
   onAnalysis(result, frame) {
     if (this.settings.mode !== 'sync') return;
     this.detection = result.tempo; this.lastDetectionFrame = frame;
-    this.applyTempo(frame);
+    const autoChanged = this.settings.bpmMode === 'auto' && !this.settings.tempoLocked
+      && result.tempo.status === 'Stable' && Number.isFinite(result.tempo.stableBpm)
+      && this.clock.valid && Math.abs(this.clock.bpm - result.tempo.stableBpm) > .65;
+    const clockChanged = this.applyTempo(frame, autoChanged);
     if (!this.engine.frozen && !this.pending && result.beat) this.clock.alignBeat(result.beat.referenceTime * this.sampleRate, frame, result.beat.confidence);
-    if (this.settings.frozen && !this.engine.frozen && !this.pending) this.arm(frame);
+    if (this.settings.frozen && ((!this.engine.frozen && !this.pending) || clockChanged)) this.arm(frame);
   }
   arm(frame) {
     if (!this.clock.valid) { this.pending = null; this.status = 'Waiting for tempo'; return; }
+    if ((GRID_BEATS[this.grid] || 1) >= 4 && !this.clock.manualReference) {
+      this.pending = null; this.status = 'Waiting for Beat 1'; return;
+    }
     const duration = this.duration;
     const earliest = this.engine.history.firstFrame === null ? frame + duration + this.engine.seamFrames(duration) + 2
       : Math.max(frame + 1, this.engine.history.firstFrame + duration + this.engine.seamFrames(duration) + 2);
@@ -65,7 +77,7 @@ export class FreezeSyncController {
   }
   setBeat1(frame) {
     if (!this.clock.setBeat1(frame)) return;
-    if (this.pending?.kind === 'capture') this.arm(frame);
+    if (this.pending?.kind === 'capture' || (this.settings.frozen && !this.engine.frozen)) this.arm(frame);
     else if (this.pending?.kind === 'release') this.pending.atFrame = this.clock.nextGridFrame(this.settings.releaseQuantize === 'bar' ? '1bar' : 'beat', frame);
   }
   tick(frame) {
@@ -85,6 +97,7 @@ export class FreezeSyncController {
     const status = this.tempoMode === 'Locked' ? 'Locked' : this.tempoMode === 'Manual' ? 'Manual' : stale ? 'Detecting' : this.detection.status;
     return { ...this.clock.info(frame), ...this.detection, status,
       stableBpm: this.detection.stableBpm, confidence: stale ? 0 : this.detection.confidence,
+      effectiveBpm: this.effectiveBpm,
       bpmMode: this.tempoMode, locked: this.clock.valid, // legacy consumers mean usable tempo
       tempoLocked: this.tempoMode === 'Locked', held: this.clock.valid && this.tempoMode === 'Auto' && status !== 'Stable',
       triggerStatus: this.status, frozen: this.engine.frozen, requested: this.settings.frozen,

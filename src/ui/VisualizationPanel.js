@@ -17,6 +17,8 @@ const colors = () => { const style = getComputedStyle(document.documentElement);
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const hexRgb = color => { const text = color.replace('#', ''); return /^[0-9a-f]{6}$/i.test(text) ? [0, 2, 4].map(index => parseInt(text.slice(index, index + 2), 16)) : [100, 170, 200]; };
 const db = value => 20 * Math.log10(Math.max(value, .000001));
+export const spectrogramStrength = value => clamp((Number(value) + 96) / 76, 0, 1) ** .7;
+export const spectrogramFrequencyIndex = (frequency, sampleRate, binCount) => clamp(Math.round(frequency / sampleRate * binCount * 2), 0, binCount - 1);
 
 export class VisualizationPanel {
   constructor(canvas, selector, description, controls = {}) {
@@ -32,7 +34,7 @@ export class VisualizationPanel {
   bind() { this.selector.addEventListener('change', event => this.setMode(event.target.value), { signal: this.events.signal }); this.pauseButton?.addEventListener('click', () => this.setPaused(!this.paused), { signal: this.events.signal }); window.addEventListener('resize', () => { if (!this.paused && !this.panel?.classList.contains('is-hidden')) this.render(this.lastAnalysis); }, { signal: this.events.signal }); if ('ResizeObserver' in window) { this.resizeObserver = new ResizeObserver(() => { if (!this.paused && !this.panel?.classList.contains('is-hidden')) this.render(this.lastAnalysis); }); this.resizeObserver.observe(this.canvas); } }
   buildSourceControls() {
     this.sourceArea = this.panel?.querySelector('.analyzer-source-area'); this.pauseButton = this.panel?.querySelector('[data-analyzer-pause]'); if (!this.sourceArea) return;
-    this.sourceArea.replaceChildren(); this.slots = this.state.sources.map((source, index) => { const row = document.createElement('label'); row.className = 'analyzer-source-slot'; const visible = document.createElement('input'); visible.type = 'checkbox'; visible.checked = this.state.visible[index] !== false; visible.setAttribute('aria-label', 'Source ' + (index + 1) + ' anzeigen'); const select = document.createElement('select'); select.className = 'inline-select'; select.setAttribute('aria-label', 'Source ' + (index + 1)); row.append(visible, document.createTextNode('S' + (index + 1)), select); this.sourceArea.append(row); visible.addEventListener('change', () => { this.state.visible[index] = visible.checked; this.saveState(); if (!this.paused) this.render(this.lastAnalysis); }); select.addEventListener('change', () => { this.state.sources[index] = select.value; this.saveState(); if (!this.paused) this.render(this.lastAnalysis); }); return { row, visible, select }; }); this.setSourceRegistry(this.sourceNames); this.pauseButton?.setAttribute('aria-pressed', 'false');
+    this.sourceArea.replaceChildren(); this.slots = this.state.sources.map((source, index) => { const row = document.createElement('label'); row.className = 'analyzer-source-slot'; const visible = document.createElement('input'); visible.type = 'checkbox'; visible.checked = this.state.visible[index] !== false; visible.setAttribute('aria-label', 'Source ' + (index + 1) + ' anzeigen'); const select = document.createElement('select'); select.className = 'inline-select'; select.setAttribute('aria-label', 'Source ' + (index + 1)); row.append(visible, document.createTextNode('S' + (index + 1)), select); this.sourceArea.append(row); visible.addEventListener('change', () => { this.state.visible[index] = visible.checked; if (this.mode === 'spectrogram' && visible.checked) this.selectSpectrogramSource(index); this.resetSpectrogram(); this.saveState(); if (!this.paused) this.render(this.lastAnalysis); }); select.addEventListener('change', () => { this.state.sources[index] = select.value; this.resetSpectrogram(); this.saveState(); if (!this.paused) this.render(this.lastAnalysis); }); return { row, visible, select }; }); this.setSourceRegistry(this.sourceNames); this.pauseButton?.setAttribute('aria-pressed', 'false');
   }
   buildModeControl() {
     const area = this.panel?.querySelector('.analyzer-mode-area'); if (!area) return; area.replaceChildren();
@@ -41,12 +43,19 @@ export class VisualizationPanel {
   }
   addModeSelect(area, labelText, key, options, onChange = () => {}) { const label = document.createElement('label'); label.textContent = labelText; const select = document.createElement('select'); select.className = 'inline-select'; options.forEach(([text, value]) => select.add(new Option(text, value))); select.value = this.state[key]; select.addEventListener('change', () => { this.state[key] = select.value; onChange(); this.saveState(); }); label.append(select); area.append(label); }
   setSourceRegistry(names = []) { const available = [...new Set(names.filter(name => SOURCE_LABELS[name] || name))]; if (!available.length || (this.registryInitialized && available.join() === this.sourceNames.join())) return; this.registryInitialized = true; this.sourceNames = available; this.slots?.forEach((slot, index) => { const current = available.includes(this.state.sources[index]) ? this.state.sources[index] : available.includes('output') ? 'output' : available[0]; this.state.sources[index] = current; if (slot.select.options.length !== available.length || [...slot.select.options].some((option, i) => option.value !== available[i])) { slot.select.replaceChildren(); available.forEach(name => slot.select.add(new Option(SOURCE_LABELS[name] || name, name))); } slot.select.value = current; }); this.saveState(); }
-  setMode(mode) { this.mode = VIEW_INFO[mode] ? mode : 'spectrum'; this.state.mode = this.mode; this.selector.value = this.mode; this.description.textContent = VIEW_INFO[this.mode]; this.buildModeControl(); this.saveState(); if (!this.paused) this.render(this.lastAnalysis); }
+  setMode(mode) { const previous = this.mode; this.mode = VIEW_INFO[mode] ? mode : 'spectrum'; this.state.mode = this.mode; this.selector.value = this.mode; this.description.textContent = VIEW_INFO[this.mode]; this.buildModeControl(); if (this.mode === 'spectrogram') this.selectSpectrogramSource(); if (previous === 'spectrogram' || this.mode === 'spectrogram') this.resetSpectrogram(); this.saveState(); if (!this.paused) this.render(this.lastAnalysis); }
   setPaused(paused) { if (paused && this.lastAnalysis) this.lastAnalysis = structuredClone(this.lastAnalysis); this.paused = Boolean(paused); this.pauseButton.textContent = this.paused ? 'Play' : 'Pause'; this.pauseButton.setAttribute('aria-pressed', String(this.paused)); this.pauseButton.classList.toggle('active', this.paused); if (!this.paused) this.render(this.lastAnalysis); }
   setProcessingSettings(settings) { this.settings = settings; }
   setDynamics(metrics) { if (this.paused) return; this.metrics = { ...this.metrics, ...metrics }; }
   setModulationVisuals(value) { this.modulation = value; }
-  getAnalysisSources() { return [...new Set(this.state.sources.filter((source, index) => this.state.visible[index] !== false && this.sourceNames.includes(source)))].slice(0, 6); }
+  selectSpectrogramSource(preferredIndex = null) {
+    const index = preferredIndex ?? this.state.visible.findIndex((visible, i) => visible !== false && this.sourceNames.includes(this.state.sources[i]));
+    if (index < 0 || index >= this.state.sources.length) return;
+    this.state.visible = this.state.visible.map((visible, i) => i === index ? true : false);
+    this.slots?.forEach((slot, i) => { slot.visible.checked = i === index; });
+  }
+  resetSpectrogram() { this.spectrogramCanvas = null; this.spectrogramSource = null; }
+  getAnalysisSources() { const sources = this.mode === 'spectrogram' ? this.state.sources.filter((source, index) => this.state.visible[index] !== false && this.sourceNames.includes(source)).slice(0, 1) : this.state.sources.filter((source, index) => this.state.visible[index] !== false && this.sourceNames.includes(source)).slice(0, 6); return [...new Set(sources)]; }
   sourceLabel(source) { return SOURCE_LABELS[source] || source; }
   resize() { const width = Math.max(320, this.canvas.clientWidth || 820), height = Math.max(190, this.canvas.clientHeight || 250), ratio = Math.min(window.devicePixelRatio || 1, 2), pixelWidth = Math.round(width * ratio), pixelHeight = Math.round(height * ratio); if (this.canvas.width !== pixelWidth || this.canvas.height !== pixelHeight) { this.canvas.width = pixelWidth; this.canvas.height = pixelHeight; } this.width = width; this.height = height; this.context.setTransform(ratio, 0, 0, ratio, 0, 0); }
   render(analysis) {
@@ -71,12 +80,13 @@ export class VisualizationPanel {
     }
     const ctx = canvas.getContext('2d');
     ctx.drawImage(canvas, -1, 0); ctx.clearRect(width - 1, 0, 1, height);
-    const [r, g, b] = hexRgb(colors()[0]), maxFrequency = Math.min(20000, sampleRate / 2);
+    const [r, g, b] = hexRgb(colors()[0]), [br, bg, bb] = hexRgb(css('--visualizer-bg') || '#0d1116'), maxFrequency = Math.min(20000, sampleRate / 2);
     for (let y = 0; y < height; y++) {
       const frequency = 20 * (maxFrequency / 20) ** (1 - y / Math.max(1, height - 1));
-      const index = clamp(Math.round(frequency / sampleRate * item.frequency.length * 2), 0, item.frequency.length - 1);
-      const strength = clamp((item.frequency[index] + 94) / 86, 0, 1);
-      ctx.fillStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + (.06 + strength * .88) + ')';
+      const index = spectrogramFrequencyIndex(frequency, sampleRate, item.frequency.length);
+      const strength = spectrogramStrength(item.frequency[index]);
+      const red = Math.round(br + (r - br) * strength), green = Math.round(bg + (g - bg) * strength), blue = Math.round(bb + (b - bb) * strength);
+      ctx.fillStyle = 'rgb(' + red + ',' + green + ',' + blue + ')';
       ctx.fillRect(width - 1, y, 1, 1);
     }
     this.context.drawImage(canvas, 42, 18, width, height);

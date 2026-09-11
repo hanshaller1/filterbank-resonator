@@ -14,7 +14,7 @@ self.onmessage = event => {
     if (now - lastAnalysis < .9) return;
     lastAnalysis = now;
     const tempo = detector.analyze(now);
-    port.postMessage({ type: 'analysis', epoch: data.epoch, tempo, beat: tracker.analyze(detector.events, referenceBpm || tempo.stableBpm, now) });
+    port.postMessage({ type: 'analysis', epoch: data.epoch, tempo, diagnostics: detector.diagnostics, beat: tracker.analyze(detector.events, referenceBpm || tempo.stableBpm, now) });
   };
   port.start();
 };

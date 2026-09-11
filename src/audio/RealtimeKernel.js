@@ -1,10 +1,15 @@
 // Stereo-linked dynamics. No DOM, timers or per-sample allocations.
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const softClip = (value, threshold, room, amount) => {
+export const softClip = (value, threshold, room, amount) => {
   const magnitude = Math.abs(value);
   const rounded = magnitude <= threshold ? magnitude : threshold + room * Math.tanh((magnitude - threshold) / room);
   return value + (Math.sign(value) * rounded - value) * amount;
 };
+export function clipperTransfer(value, settings = {}) {
+  const threshold = 10 ** (Number(settings.threshold ?? -3) / 20), ceiling = 10 ** (Number(settings.ceiling ?? -1) / 20);
+  if (settings.mode === 'limiter' || settings.mode === 1) return clamp(value * Math.min(1, threshold / Math.max(Math.abs(value), 1e-9)), -ceiling, ceiling);
+  return clamp(softClip(value, threshold, Math.max(.001, 1 - threshold), clamp(Number(settings.amount ?? .25), 0, 1)), -ceiling, ceiling);
+}
 export class RealtimeKernel {
   constructor(sampleRate, kind) {
     this.sampleRate = sampleRate; this.kind = kind; this.gain = 1;
@@ -58,7 +63,10 @@ export class RealtimeKernel {
         this.counter--;
         wl = this.hold[0]; wr = this.hold[1];
         if (at('bitEnabled', i) >= .5) {
-          const levels = 2 ** (Math.round(at('bitDepth', i)) - 1);
+          // Keep the quantizer continuous between mapped UI positions. The
+          // UI still presents understandable bit values, while fractional
+          // depths avoid an unnecessary whole-bit jump in the DSP.
+          const levels = 2 ** (Math.max(2, at('bitDepth', i)) - 1);
           wl = Math.round(wl * levels) / levels; wr = Math.round(wr * levels) / levels;
         }
       }

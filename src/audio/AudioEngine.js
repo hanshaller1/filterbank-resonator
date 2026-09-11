@@ -9,6 +9,7 @@ import { FreezeProcessor } from './FreezeProcessor.js';
 import { RealtimeProcessor } from './RealtimeProcessors.js';
 
 const dbToGain = db => 10 ** (db / 20);
+const MODULE_TAPS = { freeze: 'postFreeze', gate: 'postGate', transient: 'postTransient', drive: 'postDrive', wavefolder: 'postWavefolder', crusher: 'postCrusher', filter: 'postFilter', eq: 'postEq', compressor: 'postCompressor', width: 'postWidth', clipper: 'postClipper' };
 export class AudioEngine {
   constructor(deviceManager, store = new AppState()) {
     this.deviceManager = deviceManager; this.store = store;
@@ -46,26 +47,26 @@ export class AudioEngine {
     routing.onChange = () => this.onRoutingChange();
     const mix = this.nodes.mix = context.createGain();
     const outputGain = this.nodes.outputGain = context.createGain();
-    const outputMuteGain = this.nodes.outputMuteGain = context.createGain();
     const limiter = this.nodes.limiter = context.createDynamicsCompressor();
     const metering = this.nodes.metering = new Metering(context);
     limiter.threshold.value = -3; limiter.knee.value = 12; limiter.ratio.value = 12;
     limiter.attack.value = .003; limiter.release.value = .1;
     source.connect(inputGain);
-    registry.get('freeze').processor.connectTempoSource(inputGain);
+    // Keep the tempo tap on the raw stream source; routing rebuilds may disconnect inputGain edges.
+    registry.get('freeze').processor.connectTempoSource(source);
     metering.connectTap('input', inputGain);
     inputGain.connect(dryGain);
     registry.connect(inputGain, processingOutput);
-    const tapModules = { postFreeze: 'freeze', postGate: 'gate', postTransient: 'transient', postDrive: 'drive', postWavefolder: 'wavefolder', postCrusher: 'crusher', postFilter: 'filter', postEq: 'eq', postCompressor: 'compressor', postWidth: 'width', postClipper: 'clipper' };
+    const tapModules = Object.fromEntries(Object.entries(MODULE_TAPS).map(([module, tap]) => [tap, module]));
     for (const [name, id] of Object.entries(tapModules)) metering.connectTap(name, registry.get(id).output);
     processingOutput.connect(wetGain);
     autoGain.setAnalysisSources(inputGain, processingOutput);
     wetGain.connect(autoGain.input);
     dryGain.connect(mix); autoGain.connect(mix);
-    mix.connect(outputGain); outputGain.connect(limiter); limiter.connect(outputMuteGain);
+    mix.connect(outputGain); outputGain.connect(limiter);
     mix.connect(metering.taps.postMix.analyser);
-    outputMuteGain.connect(metering.outputAnalyser); metering.outputAnalyser.connect(context.destination);
-    this.nodes = { source, inputGain, dryGain, wetGain, processingOutput, autoGain, registry, mix, outputGain, limiter, outputMuteGain, metering };
+    limiter.connect(metering.outputAnalyser); metering.outputAnalyser.connect(context.destination);
+    this.nodes = { source, inputGain, dryGain, wetGain, processingOutput, autoGain, registry, mix, outputGain, limiter, metering };
     this.modulation = new ModulationEngine(
       context,
       this.nodes,
@@ -96,8 +97,7 @@ export class AudioEngine {
   }
   applyMaster(p) {
     const n = this.nodes, now = this.context.currentTime;
-    const values = { inputGain: dbToGain(p.inputGain), outputGain: dbToGain(p.outputGain),
-      outputMuteGain: p.outputMute ? 0 : 1, dryGain: p.bypass ? 1 : 1 - p.dryWet,
+    const values = { inputGain: dbToGain(p.inputGain), outputGain: dbToGain(p.outputGain), dryGain: p.bypass ? 1 : 1 - p.dryWet,
       wetGain: p.bypass ? 0 : p.dryWet * dbToGain(p.wetGain) };
     for (const [id, value] of Object.entries(values)) if (this.appliedMaster[id] !== value) {
       n[id].gain.setTargetAtTime(value, now, .02); this.appliedMaster[id] = value;
@@ -118,6 +118,19 @@ export class AudioEngine {
     return {
       compressor: Math.max(0, -(registry.get('compressor').processor.getReduction() || 0)),
       limiter: Math.max(0, -(registry.get('clipper').processor.getReduction() || 0))
+    };
+  }
+  getModuleVisuals() {
+    const registry = this.nodes?.registry, metering = this.nodes?.metering;
+    if (!registry || !metering) return null;
+    const inputTap = id => { const index = registry.order.indexOf(id); return index > 0 ? MODULE_TAPS[registry.order[index - 1]] : 'input'; };
+    const taps = ['postTransient', 'postCompressor', 'postClipper', inputTap('transient'), inputTap('compressor'), inputTap('clipper')];
+    const peaks = metering.readPeaks(taps), dynamics = this.getGainReduction();
+    return {
+      wavefolder: registry.get('wavefolder').processor.getTransferCurve(),
+      transient: { input: peaks[inputTap('transient')] || 0, output: peaks.postTransient || 0 },
+      compressor: { input: peaks[inputTap('compressor')] || 0, output: peaks.postCompressor || 0, reduction: dynamics.compressor },
+      clipper: { input: peaks[inputTap('clipper')] || 0, output: peaks.postClipper || 0, reduction: registry.get('clipper').processor.getActivity() || 0 }
     };
   }
   stop() { ++this.generation; this.deviceManager.closeInput(); this.disconnectNodes(); this.active = false; }
