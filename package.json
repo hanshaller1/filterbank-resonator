@@ -1,0 +1,11 @@
+{
+  "name": "syntakt-usb-lowpass",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lokale Web-App für Syntakt USB-Audio mit resonantem Low-Pass-Filter",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node scripts/check.mjs",
+    "test": "node scripts/test.mjs"
+  }
+}

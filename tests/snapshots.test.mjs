@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { AppState } from '../src/state/AppState.js';
+import { DEFAULT_ORDER } from '../src/state/parameters.js';
+test('Snapshots are isolated and morph uses correct domains and midpoint routing', () => {
+  const s = new AppState({ cutoff: 200, wetGain: -12, driveAmount: .2 });
+  s.storeSnapshot('a');
+  s.setParameters({ cutoff: 20000, wetGain: 12, driveAmount: .8, filterType: 'highpass', driveEnabled: false, inputGain: 3 });
+  s.setOrder([...DEFAULT_ORDER].reverse()); s.storeSnapshot('b');
+  s.setMorph(.49); assert.deepEqual(s.state.order, DEFAULT_ORDER); assert.equal(s.state.parameters.filterType, 'lowpass');
+  s.setMorph(.5);
+  assert.ok(Math.abs(s.state.parameters.cutoff - 2000) < 1e-9);
+  assert.equal(s.state.parameters.wetGain, 0); assert.equal(s.state.parameters.driveAmount, .5);
+  assert.equal(s.state.parameters.filterType, 'highpass'); assert.equal(s.state.parameters.driveEnabled, false);
+  assert.deepEqual(s.state.order, [...DEFAULT_ORDER].reverse());
+  assert.equal(s.state.snapshots.a.parameters.cutoff, 200); assert.equal(s.state.parameters.inputGain, 3);
+  s.recallSnapshot('a'); assert.equal(s.state.parameters.cutoff, 200);
+  s.recallSnapshot('b'); assert.equal(s.state.parameters.cutoff, 20000);
+  s.setMorph(0); assert.deepEqual(s.state.order, DEFAULT_ORDER);
+  s.setMorph(1); assert.equal(s.state.parameters.driveAmount, .8);
+});

@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Syntakt Drive + Multimode Filter</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">USB AUDIO · ECHTZEIT</p>
+        <h1>Syntakt Drive + Multimode Filter</h1>
+        <label class="theme-picker">Theme
+          <select id="themeSelect" aria-label="Farbschema">
+            <option value="graphite">Graphite</option><option value="midnight">Midnight</option><option value="slate">Slate</option><option value="forest">Forest</option><option value="warmStudio">Warm Studio</option>
+          </select>
+        </label>
+      </div>
+      <div class="header-actions">
+        <button id="performanceMode" type="button" aria-pressed="false">Performance Mode</button>
+        <button type="button" data-section-action="collapse-all-sections" title="Alle UI-Bereiche schließen">Collapse Sections</button>
+        <button type="button" data-section-action="expand-all-sections" title="Alle UI-Bereiche öffnen">Expand Sections</button>
+      </div>
+      <div id="audioState" class="state-badge stopped">Gestoppt</div>
+    </header>
+
+    <section class="routing panel" data-collapse-section="signal-flow">
+      <div class="panel-title"><h2>Signalweg</h2><span>Input Gain → Processing → Dry/Wet → Output Gain</span></div>
+      <div class="subsection" data-collapse-section="input">
+        <div class="subsection-header"><h3>Input</h3><span class="subsection-status">Device und Pegel</span></div>
+        <div class="subsection-content input-row">
+        <label>Input Device
+          <select id="inputDevice"></select>
+        </label>
+        <label>Input Gain <output id="inputGainValue">0.0 dB</output>
+          <input id="inputGain" type="range" min="-24" max="12" step="0.1" value="0">
+          <div class="range-labels"><span>-24 dB</span><span>+12 dB</span></div>
+        </label>
+        <div id="inputPeak" class="input-peak" aria-live="polite">Peak: — | HR: —</div>
+        </div>
+      </div>
+      <div class="subsection" data-collapse-section="output">
+        <div class="subsection-header"><h3>Output</h3><span class="subsection-status">Device und Pegel</span></div>
+        <div class="subsection-content input-row output-row">
+        <label>Output Device
+          <select id="outputDevice"></select>
+        </label>
+        <label>Output Gain <output id="outputGainValue">-6.0 dB</output>
+          <input id="outputGain" type="range" min="-24" max="6" step="0.1" value="-6">
+          <div class="range-labels"><span>-24 dB</span><span>+6 dB</span></div>
+        </label>
+        <div id="outputPeak" class="input-peak" aria-live="polite">Peak: — | HR: —</div>
+        </div>
+      </div>
+      <div class="subsection" data-collapse-section="mix">
+        <div class="subsection-header"><h3>Dry / Wet · Mix</h3><span class="subsection-status">Wet Gain und Auto Gain</span></div>
+        <div class="subsection-content dry-wet-routing">
+        <label>Dry / Wet <output id="dryWetValue">100 %</output>
+          <input id="dryWet" type="range" min="0" max="100" value="100">
+          <div class="range-labels"><span>Dry</span><span>Wet</span></div>
+        </label>
+        <label>Wet Gain <output id="wetGainValue">+0.0 dB</output>
+          <input id="wetGain" type="range" min="-24" max="12" step="0.1" value="0">
+          <div class="range-labels"><span>-24 dB</span><span>+12 dB</span></div>
+        </label>
+        <button id="autoGain" class="mute-button" type="button" aria-pressed="false">Auto Gain</button>
+        <output id="autoGainValue" class="auto-gain-value">AG: 0.0 dB</output>
+        <button id="mute" class="mute-button" type="button" aria-pressed="false">Mute</button>
+        </div>
+      </div>
+      <div class="status-grid">
+        <div><span>Input</span><strong id="currentInput">—</strong></div>
+        <div><span>Output</span><strong id="currentOutput">—</strong></div>
+        <div><span>Sample Rate</span><strong id="sampleRate">—</strong></div>
+        <div><span>AudioContext</span><strong id="contextState">—</strong></div>
+        <div class="status-actions"><button id="startAudio" class="primary" type="button">Start Audio</button></div>
+        <div class="status-actions"><button id="stopAudio" type="button" disabled>Stop Audio</button></div>
+      </div>
+    </section>
+
+    <section id="presetPanel" class="panel edit-only" data-collapse-section="presets"></section>
+    <section id="snapshotPanel" class="panel" data-collapse-section="snapshots"></section>
+    <section id="macroPanel" class="panel" data-collapse-section="macros"></section>
+    <section id="modulationPanel" class="panel edit-only" data-collapse-section="modulation"></section>
+    <section class="controls panel edit-only" data-collapse-section="processing">
+      <div class="panel-title"><h2>Processing</h2><span>Input → Freeze → Gate → Transient → Drive → Fold → Crusher → Filter → EQ → Dynamics → Width → Clipper → Mix → Output</span><div class="section-actions"><button id="processingDeselectAll" type="button">Deselect All</button><button type="button" data-section-action="collapse-processing">Collapse All</button><button type="button" data-section-action="expand-processing">Expand All</button></div></div>
+      <section class="processing-module" data-collapsible="freeze">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Freeze</span><small>Free / Sync</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="freezeEnabled" type="checkbox" role="switch" aria-label="freezeEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-content"><div class="control-grid freeze-controls">
+          <label class="control">Mode
+            <select id="freezeMode" class="inline-select">
+              <option value="free" selected>Free</option>
+              <option value="sync">Sync</option>
+            </select>
+          </label>
+          <label id="freezeFreeControl" class="control">Length <output id="freezeFreeLengthValue">250 ms</output>
+            <input id="freezeFreeLength" type="range" min="0" max="20000" step="5" value="250">
+            <div class="range-labels"><span>0 ms</span><span>20 s</span></div>
+          </label>
+          <label id="freezeSyncControl" class="control" hidden>Loop Length <output id="freezeSyncLengthValue">1 Bar</output>
+            <select id="freezeSyncLength" class="inline-select">
+              <option value="quarter">1/4 Beat</option>
+              <option value="half">1/2 Beat</option>
+              <option value="beat">1 Beat</option>
+              <option value="2beats">2 Beats</option>
+              <option value="1bar" selected>1 Bar</option>
+              <option value="2bars">2 Bars</option>
+              <option value="4bars">4 Bars</option>
+              <option value="8bars">8 Bars</option>
+            </select>
+          </label>
+          <div id="freezeTempoControl" class="freeze-tempo" aria-live="polite" hidden>
+            <span>Tempo</span><strong id="freezeTempoValue">120 BPM</strong><small id="freezeStatusValue">Detecting…</small>
+          </div>
+        </div>
+          <div id="freezeSyncSettings" hidden>
+            <div class="freeze-sync-settings">
+              <label>BPM Mode<select id="freezeBpmMode"><option value="auto">Auto</option><option value="manual">Manual</option></select></label>
+              <label>Manual BPM<input id="freezeManualBpm" type="number" min="40" max="240" step="0.01" value="120"></label>
+              <button id="freezeLockBpm" type="button" aria-pressed="false" disabled>Lock BPM</button>
+              <button id="freezeSetBeat1" type="button" disabled>Set Beat 1</button>
+              <label>Start Quantize<select id="freezeStartQuantize">
+                <option value="auto">Auto · Beat / Bar</option>
+                <option value="1/32">1/32 Note</option><option value="1/16">1/16 Note</option><option value="1/8">1/8 Note</option>
+                <option value="1/4">1/4 Note</option><option value="1/2">1/2 Note</option>
+                <option value="beat">1 Beat</option><option value="2beats">2 Beats</option><option value="1bar">1 Bar</option><option value="2bars">2 Bars</option><option value="4bars">4 Bars</option>
+              </select></label>
+              <label>Release Quantize<select id="freezeReleaseQuantize"><option value="off">Off</option><option value="beat">Beat</option><option value="bar">Bar</option></select></label>
+            </div>
+            <div class="freeze-sync-summary"><strong id="freezeBeatValue">Beat — / 4</strong><span id="freezeTriggerStatus" role="status">Live</span></div>
+            <p class="help-text">4/4 · 1/4 Note = 1 Beat. Der Taktanfang ist zunächst geschätzt; „Set Beat 1“ setzt den nächsten Beat auf den Taktanfang. Auto wartet auf ein stabiles Tempo oder verwendet den letzten stabilen Wert. Während Freeze bleibt dieses Tempo fest; eine manuelle Tempo- oder Längenänderung nimmt am nächsten Rasterpunkt einen neuen Loop auf.</p>
+            <details class="freeze-debug"><summary>Sync Debug</summary><dl>
+              <div><dt>Detected BPM</dt><dd data-sync-debug="detectedBpm">—</dd></div>
+              <div><dt>Stable BPM</dt><dd data-sync-debug="stableBpm">—</dd></div>
+              <div><dt>Clock BPM</dt><dd data-sync-debug="clockBpm">—</dd></div>
+              <div><dt>Confidence</dt><dd data-sync-debug="confidence">0 %</dd></div>
+              <div><dt>BPM Mode</dt><dd data-sync-debug="bpmMode">Auto</dd></div>
+              <div><dt>Beat</dt><dd data-sync-debug="beat">—</dd></div>
+              <div><dt>Bar</dt><dd data-sync-debug="bar">—</dd></div>
+              <div><dt>Bar Reference</dt><dd data-sync-debug="barReference">Estimated</dd></div>
+              <div><dt>Beat Phase</dt><dd data-sync-debug="beatPhase">—</dd></div>
+              <div><dt>Next Beat</dt><dd data-sync-debug="nextBeatMs">—</dd></div>
+              <div><dt>Next Bar</dt><dd data-sync-debug="nextBarMs">—</dd></div>
+              <div><dt>Freeze Trigger</dt><dd data-sync-debug="triggerStatus">Live</dd></div>
+              <div><dt>Start Quantize</dt><dd data-sync-debug="quantization">Auto</dd></div>
+              <div><dt>Release Quantize</dt><dd data-sync-debug="release">Off</dd></div>
+              <div><dt>Loop BPM</dt><dd data-sync-debug="loopBpm">—</dd></div>
+            </dl></details>
+          </div>
+        </div>
+      </section>
+      <section class="processing-module" data-collapsible="gate">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Noise Gate / Expander</span><small>Gate</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="gateEnabled" type="checkbox" role="switch" aria-label="gateEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-content"><div class="control-grid">
+          <label class="control">Mode
+            <select id="gateMode" class="inline-select"><option value="gate" selected>Gate</option><option value="expander">Expander</option></select>
+          </label>
+          <label class="control">Threshold <output id="gateThresholdValue">-45.0 dB</output><input id="gateThreshold" type="range" min="-80" max="0" step="0.5" value="-45"><div class="range-labels"><span>-80 dB</span><span>0 dB</span></div></label>
+          <label class="control">Range / Reduction <output id="gateRangeValue">48.0 dB</output><input id="gateRange" type="range" min="0" max="60" step="0.5" value="48"><div class="range-labels"><span>0 dB</span><span>60 dB</span></div></label>
+          <label class="control">Attack <output id="gateAttackValue">5 ms</output><input id="gateAttack" type="range" min="1" max="100" step="1" value="5"><div class="range-labels"><span>fast</span><span>slow</span></div></label>
+          <label class="control">Release <output id="gateReleaseValue">120 ms</output><input id="gateRelease" type="range" min="20" max="1000" step="5" value="120"><div class="range-labels"><span>20 ms</span><span>1 s</span></div></label>
+        </div></div>
+      </section>
+      <section class="processing-module" data-collapsible="transient">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Transient Shaper</span><small>Attack / Sustain</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="transientEnabled" type="checkbox" role="switch" aria-label="transientEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-content"><div class="control-grid">
+          <label class="control">Attack <output id="transientAttackValue">0 %</output><input id="transientAttack" type="range" min="-100" max="100" step="1" value="0"><div class="range-labels"><span>weicher</span><span>härter</span></div></label>
+          <label class="control">Sustain <output id="transientSustainValue">0 %</output><input id="transientSustain" type="range" min="-100" max="100" step="1" value="0"><div class="range-labels"><span>kürzer</span><span>länger</span></div></label>
+        </div></div>
+      </section>
+      <section class="processing-module" data-collapsible="drive">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Drive</span><small>Saturation</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="driveEnabled" type="checkbox" role="switch" aria-label="driveEnabled" checked><span class="module-power-state">ON</span></label></div>
+        <div class="module-content">
+        <div class="control-grid drive-controls">
+        <label class="control">Character <output id="characterValue">Saturation</output>
+          <select id="driveCharacter" class="inline-select">
+            <option value="clean">Clean Boost</option>
+            <option value="saturation" selected>Saturation</option>
+            <option value="enhancement">Enhancement</option>
+            <option value="midDrive">Mid Drive</option>
+            <option value="crunch">Rough Crunch</option>
+            <option value="classicDistortion">Classic Distortion</option>
+            <option value="roundFuzz">Round Fuzz</option>
+            <option value="highGain">High Gain</option>
+          </select>
+        </label>
+        <label class="control">Drive Amount <output id="driveAmountValue">32 %</output>
+          <input id="driveAmount" type="range" min="0" max="100" value="32">
+          <div class="range-labels"><span>clean</span><span>distorted</span></div>
+        </label>
+        <label class="control">Tone <output id="driveToneValue">0 %</output>
+          <input id="driveTone" type="range" min="-100" max="100" step="1" value="0">
+          <div class="range-labels"><span>Dark</span><span>Bright</span></div>
+        </label>
+        <label class="control">Bias / Symmetry <output id="driveBiasValue">0 %</output>
+          <input id="driveBias" type="range" min="-100" max="100" step="1" value="0">
+          <div class="range-labels"><span>negative</span><span>positive</span></div>
+        </label>
+        <label class="control">Character / Shape <output id="driveShapeValue">35 %</output>
+          <input id="driveShape" type="range" min="0" max="100" step="1" value="35">
+          <div class="range-labels"><span>soft</span><span>hard</span></div>
+        </label>
+        </div>
+        <div class="drive-curve module-visual" aria-label="Aktuelle Drive-Transferkurve"><canvas id="driveCurveCanvas"></canvas><small>Actual transfer curve</small></div>
+        </div>
+      </section>
+
+      <section class="processing-module" data-collapsible="wavefolder">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Wavefolder</span><small>Fold</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="wavefolderEnabled" type="checkbox" role="switch" aria-label="wavefolderEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-content compressor-layout"><div class="control-grid">
+          <label class="control">Fold <output id="wavefolderFoldValue">25 %</output><input id="wavefolderFold" type="range" min="0" max="100" step="1" value="25"><div class="range-labels"><span>clean</span><span>complex</span></div></label>
+          <label class="control">Symmetry / Bias <output id="wavefolderBiasValue">0 %</output><input id="wavefolderBias" type="range" min="-100" max="100" step="1" value="0"><div class="range-labels"><span>-100 %</span><span>+100 %</span></div></label>
+          <label class="control">Output Gain <output id="wavefolderOutputValue">+0.0 dB</output><input id="wavefolderOutput" type="range" min="-12" max="6" step="0.1" value="0"><div class="range-labels"><span>-12 dB</span><span>+6 dB</span></div></label>
+        </div><div class="compressor-visual module-visual" aria-label="Compressor Transfer und Gain Reduction"><canvas id="compressorCanvas"></canvas><output id="compressorReductionValue">GR: 0.0 dB</output></div></div>
+      </section>
+      <section class="processing-module" data-collapsible="crusher">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Bitcrusher / Sample Rate Reduction</span><small>Digital</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="crusherEnabled" type="checkbox" role="switch" aria-label="crusherEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-content"><div class="control-grid">
+          <label class="control check-control"><span>Bit Crush</span><input id="bitEnabled" type="checkbox" role="switch" aria-label="bitEnabled" checked><span class="check-state">ON/OFF</span></label>
+          <label class="control check-control"><span>Sample Rate Reduction</span><input id="rateEnabled" type="checkbox" role="switch" aria-label="rateEnabled" checked><span class="check-state">ON/OFF</span></label>
+          <label class="control">Bit Depth <output id="bitDepthValue">8 bit</output><input id="bitDepth" type="range" min="2" max="16" step="1" value="8"><div class="range-labels"><span>2 bit</span><span>16 bit</span></div></label>
+          <label class="control">Reduction Amount <output id="rateReductionValue">35 %</output><input id="rateReduction" type="range" min="0" max="0.95" step="0.01" value="0.35"><div class="range-labels"><span>original</span><span>reduced</span></div></label>
+        </div></div>
+      </section>
+
+      <section class="processing-module" data-collapsible="filter">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Filter</span><small>Low-Pass</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="filterEnabled" type="checkbox" role="switch" aria-label="filterEnabled" checked><span class="module-power-state">ON</span></label></div>
+        <div class="module-content">
+      <div class="filter-section">
+        <div class="filter-type-row">
+          <label class="control">Filter Type <output id="filterTypeValue">Low-Pass</output>
+            <select id="filterType" class="inline-select">
+            <option value="lowpass" selected>Low-Pass</option>
+            <option value="highpass">High-Pass</option>
+            <option value="bandpass">Band-Pass</option>
+            <option value="notch">Notch</option>
+            <option value="peak">Peak / Bell</option>
+            <option value="allpass">Allpass</option>
+            <option value="feedforwardComb">Feedforward Comb</option>
+            <option value="feedbackComb">Feedback Comb</option>
+            <option value="formant">Formant / Vowel</option>
+            </select>
+          </label>
+          <div class="filter-help" tabindex="0" aria-describedby="filterTooltip">
+            <span id="filterExplanation">Lässt tiefe Frequenzen passieren und rollt Höhen oberhalb des Cutoffs ab.</span>
+            <span id="filterTooltip" class="filter-tooltip" role="tooltip">Der Low-Pass glättet Höhen; Cutoff bestimmt die Eckfrequenz, Resonance / Q die Betonung direkt an dieser Stelle.</span>
+          </div>
+        </div>
+        <div class="filter-parameter-row">
+          <label class="control"><span id="filterPrimaryLabel">Cutoff</span> <output id="cutoffValue">20.00 kHz</output>
+            <input id="cutoff" type="range" min="0" max="1000" value="1000">
+            <div class="range-labels"><span id="primaryMinLabel">20 Hz</span><span id="primaryMaxLabel">20 kHz</span></div>
+          </label>
+          <label class="control"><span id="filterResonanceLabel">Resonance / Q</span> <output id="resonanceValue">0.70</output>
+            <input id="resonance" type="range" min="0.1" max="12" step="0.1" value="0.7">
+            <div class="range-labels"><span>sanft</span><span>resonant</span></div>
+          </label>
+          <label id="filterPeakGainControl" class="control" hidden>Peak Gain <output id="filterPeakGainValue">+0.0 dB</output>
+            <input id="filterPeakGain" type="range" min="-12" max="12" step="0.1" value="0">
+            <div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div>
+          </label>
+        </div>
+        <div class="filter-response" aria-label="Theoretische Filter Response">
+          <canvas id="filterResponseCanvas"></canvas>
+        </div>
+      </div>
+        </div>
+      </section>
+
+      <section class="processing-module" data-collapsible="eq">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>EQ</span><small id="eqHeaderStatus">3-Band Tone</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="eqEnabled" type="checkbox" role="switch" aria-label="eqEnabled" checked><span class="module-power-state">ON</span></label></div>
+        <div class="module-content">
+      <div class="eq-inline">
+        <div class="eq-type-row">
+          <label class="control">EQ Type
+            <select id="eqType" class="inline-select">
+              <option value="shelf2">2-Band Shelf</option>
+              <option value="tone3" selected>3-Band Tone</option>
+              <option value="tilt">Tilt</option>
+              <option value="graphic5">5-Band Graphic</option>
+            </select>
+          </label>
+          <div class="eq-help" tabindex="0" aria-describedby="eqTooltip">
+            <span id="eqExplanation">Musikalische Klangformung mit Bass, Mitten und Höhen.</span>
+            <span id="eqTooltip" class="eq-tooltip" role="tooltip">Low-Shelf bei 100 Hz, breite Mitte bei 1 kHz und High-Shelf bei 8 kHz. Low, Mid und High formen jeweils -12 bis +12 dB.</span>
+          </div>
+        </div>
+        <div class="eq-parameter-row">
+          <label id="eqLowControl" class="control">Low <output id="eqLowValue">+0.0 dB</output>
+            <input id="eqLow" type="range" min="-12" max="12" step="0.1" value="0">
+            <div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div>
+          </label>
+          <label id="eqMidControl" class="control">Mid <output id="eqMidValue">+0.0 dB</output>
+            <input id="eqMid" type="range" min="-12" max="12" step="0.1" value="0">
+            <div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div>
+          </label>
+          <label id="eqHighControl" class="control">High <output id="eqHighValue">+0.0 dB</output>
+            <input id="eqHigh" type="range" min="-12" max="12" step="0.1" value="0">
+            <div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div>
+          </label>
+          <label id="eqTiltControl" class="control" hidden>Tilt <output id="eqTiltValue">+0.0 dB</output>
+            <input id="eqTilt" type="range" min="-6" max="6" step="0.1" value="0">
+            <div class="range-labels"><span>Dark / Warm</span><span>Bright</span></div>
+          </label>
+          <label id="eqGraphicControl0" class="control" hidden>80 Hz <output id="eqGraphicValue0">+0.0 dB</output>
+            <input id="eqGraphic0" type="range" min="-12" max="12" step="0.1" value="0">
+            <div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div>
+          </label>
+          <label id="eqGraphicControl1" class="control" hidden>250 Hz <output id="eqGraphicValue1">+0.0 dB</output>
+            <input id="eqGraphic1" type="range" min="-12" max="12" step="0.1" value="0">
+            <div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div>
+          </label>
+          <label id="eqGraphicControl2" class="control" hidden>800 Hz <output id="eqGraphicValue2">+0.0 dB</output>
+            <input id="eqGraphic2" type="range" min="-12" max="12" step="0.1" value="0">
+            <div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div>
+          </label>
+          <label id="eqGraphicControl3" class="control" hidden>2.5 kHz <output id="eqGraphicValue3">+0.0 dB</output>
+            <input id="eqGraphic3" type="range" min="-12" max="12" step="0.1" value="0">
+            <div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div>
+          </label>
+          <label id="eqGraphicControl4" class="control" hidden>8 kHz <output id="eqGraphicValue4">+0.0 dB</output>
+            <input id="eqGraphic4" type="range" min="-12" max="12" step="0.1" value="0">
+            <div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div>
+          </label>
+        </div>
+        <div class="eq-response" aria-label="Theoretische EQ Response"><canvas id="eqResponseCanvas"></canvas></div>
+      </div>
+        </div>
+      </section>
+
+      <section class="processing-module" data-collapsible="compressor">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Compressor Light</span><small>Single Band</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="compressorEnabled" type="checkbox" role="switch" aria-label="compressorEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-content"><div class="control-grid">
+          <label class="control">Threshold <output id="compressorThresholdValue">-18.0 dB</output><input id="compressorThreshold" type="range" min="-60" max="0" step="0.5" value="-18"><div class="range-labels"><span>-60 dB</span><span>0 dB</span></div></label>
+          <label class="control">Ratio <output id="compressorRatioValue">4.0:1</output><input id="compressorRatio" type="range" min="1" max="20" step="0.1" value="4"><div class="range-labels"><span>1:1</span><span>20:1</span></div></label>
+          <label class="control">Attack <output id="compressorAttackValue">10 ms</output><input id="compressorAttack" type="range" min="1" max="100" step="1" value="10"><div class="range-labels"><span>fast</span><span>slow</span></div></label>
+          <label class="control">Release <output id="compressorReleaseValue">120 ms</output><input id="compressorRelease" type="range" min="20" max="1000" step="5" value="120"><div class="range-labels"><span>20 ms</span><span>1 s</span></div></label>
+          <label class="control">Makeup Gain <output id="compressorMakeupValue">+0.0 dB</output><input id="compressorMakeup" type="range" min="-12" max="12" step="0.1" value="0"><div class="range-labels"><span>-12 dB</span><span>+12 dB</span></div></label>
+        </div></div>
+      </section>
+      <section class="processing-module" data-collapsible="width">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Stereo Width</span><small>Mid / Side</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="widthEnabled" type="checkbox" role="switch" aria-label="widthEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-content"><div class="control-grid">
+          <label class="control">Width <output id="widthValue">100 %</output><input id="width" type="range" min="0" max="200" step="1" value="100"><div class="range-labels"><span>Mono</span><span>200 % wide</span></div></label>
+        </div></div>
+      </section>
+      <section class="processing-module" data-collapsible="clipper">
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Soft Clipper / Limiter</span><small>Safety Tone</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="clipperEnabled" type="checkbox" role="switch" aria-label="clipperEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-content"><div class="control-grid">
+          <label class="control">Mode<select id="clipperMode" class="inline-select"><option value="softclip" selected>Soft Clip</option><option value="limiter">Limiter</option></select></label>
+          <label class="control">Threshold <output id="clipperThresholdValue">-3.0 dB</output><input id="clipperThreshold" type="range" min="-24" max="0" step="0.5" value="-3"><div class="range-labels"><span>-24 dB</span><span>0 dB</span></div></label>
+          <label class="control">Amount <output id="clipperAmountValue">25 %</output><input id="clipperAmount" type="range" min="0" max="1" step="0.01" value="0.25"><div class="range-labels"><span>soft</span><span>strong</span></div></label>
+          <label class="control">Output Ceiling <output id="clipperCeilingValue">-1.0 dBFS</output><input id="clipperCeiling" type="range" min="-12" max="-0.1" step="0.1" value="-1"><div class="range-labels"><span>-12 dBFS</span><span>-0.1 dBFS</span></div></label>
+          <label class="control">Release <output id="clipperReleaseValue">100 ms</output><input id="clipperRelease" type="range" min="20" max="1000" step="5" value="100"><div class="range-labels"><span>20 ms</span><span>1 s</span></div></label>
+          <output id="clipperActivityValue" class="module-activity">Activity: 0.0 dB</output>
+        </div></div>
+      </section>
+
+      <div class="switch-row"><div class="switches"><label class="switch-label"><input id="bypass" type="checkbox"><span class="switch"></span> Global Bypass</label></div></div>
+    </section>
+
+    <section class="meters panel" data-collapse-section="levels">
+      <div class="meter-panel-title"><h2>Levels</h2><div class="analyzer-open-actions"><button id="openAnalyzer" type="button">Open Analyzer 1</button><button id="openAnalyzer2" type="button">Open Analyzer 2</button></div></div>
+      <div class="level-columns">
+        <div class="meter"><div class="meter-heading"><span>Input Level</span><output id="inputMeterValue">—</output></div><div class="meter-track"><div id="inputMeter" class="meter-fill"></div></div></div>
+        <div class="meter"><div class="meter-heading"><span>Output Level</span><output id="outputMeterValue">—</output></div><div class="meter-track"><div id="outputMeter" class="meter-fill output"></div></div></div>
+      </div>
+    </section>
+
+    <p id="message" class="message" role="status">Gerät auswählen und Audio starten.</p>
+  </main>
+  <section id="visualizationPanel" class="visualization-panel floating-analyzer" data-analyzer-id="1" aria-label="Floating Analyzer 1">
+    <div id="visualizationHandle" class="analyzer-titlebar">
+      <div class="analyzer-title"><strong>Analyzer 1</strong><span id="visualizationDescription">Input- und Output-Pegel</span></div>
+      <div class="analyzer-actions">
+        <button id="minimizeAnalyzer" type="button" aria-label="Analyzer minimieren"><span class="collapse-chevron analyzer-chevron" aria-hidden="true"></span></button>
+        <button id="closeAnalyzer" type="button" aria-label="Analyzer schließen">×</button>
+      </div>
+    </div>
+    <div class="analyzer-body">
+      <div class="visualization-toolbar analyzer-selectors">
+        <label>View
+          <select id="visualizationType" class="inline-select">
+            <option value="waveform">Waveform</option>
+            <option value="spectrum" selected>Spectrum</option>
+            <option value="spectrogram">Spectrogram</option>
+            <option value="dynamics">Loudness / Dynamics</option>
+            <option value="gainReduction">Gain Reduction History</option>
+            <option value="response">Frequency Response Overlay</option>
+            <option value="transient">Transient / Envelope</option>
+          </select>
+        </label>
+      </div>
+      <div class="analyzer-mode-area" aria-label="View Options"></div>
+      <div class="analyzer-source-area" aria-label="Analyzer Sources"></div>
+      <button class="analyzer-pause" type="button" data-analyzer-pause aria-pressed="false">Pause</button>
+      <canvas id="visualizationCanvas" class="visualization-canvas" aria-label="Audio-Visualisierung"></canvas>
+    </div>
+  </section>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
