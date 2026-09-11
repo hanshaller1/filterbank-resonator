@@ -1,6 +1,6 @@
 # Syntakt Low-Pass
 
-Audio-Testapplikation mit diesem Standard-Signalweg:
+Audio-Applikation mit diesem Standard-Signalweg:
 
 `Input Gain → Freeze → Gate → Transient → Drive → Wavefolder → Crusher → Filter → EQ → Compressor → Width → Clipper → Wet Gain / Auto Gain → Dry/Wet → Output Gain → Sicherheits-Limiter → Output`
 
