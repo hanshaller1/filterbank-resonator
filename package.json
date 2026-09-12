@@ -1,5 +1,5 @@
 {
-  "name": "syntakt-usb-lowpass",
+  "name": "testaudio-app",
   "version": "1.0.0",
   "private": true,
   "description": "Lokale Web-App für Syntakt USB-Audio mit resonantem Low-Pass-Filter",
