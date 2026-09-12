@@ -50,6 +50,22 @@ export class AppState {
     this.emit('morph');
   }
   setModulation(modulation) { this.value = { ...this.value, modulation: normalizeModulation(modulation) }; this.emit('modulation'); }
+  resetModuleToDefaults(moduleId) {
+    if (moduleId === 'modulation') {
+      this.value = { ...this.value, modulation: normalizeModulation() };
+      this.emit('module-reset');
+      return true;
+    }
+    const module = MODULES.find(item => item.id === moduleId);
+    if (!module) return false;
+    const parameters = { ...this.value.parameters };
+    for (const id of module.parameters) parameters[id] = PARAMETERS[id].default;
+    // EQ banks are the module's remembered per-type values; keeping them
+    // would make a subsequent type switch restore pre-reset settings.
+    this.value = { ...this.value, parameters: sanitizeParameters(parameters), ...(moduleId === 'eq' ? { eqBanks: {} } : {}) };
+    this.emit('module-reset');
+    return true;
+  }
   setSource(id, patch) {
     const m = this.value.modulation;
     if (!m.sources[id]) return;

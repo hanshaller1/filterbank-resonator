@@ -161,6 +161,17 @@ ui.elements.outputDevice.addEventListener('change', async event => {
 });
 const controlsController = new AbortController();
 const listen = (target, type, handler) => target.addEventListener(type, handler, { signal: controlsController.signal });
+listen(document, 'click', event => {
+  const button = event.target.closest('[data-reset-module]');
+  if (!button) return;
+  const moduleId = button.dataset.resetModule;
+  if (!store.resetModuleToDefaults(moduleId)) return;
+  if (moduleId === 'freeze') freezeSyncPanel.resetUi();
+  if (moduleId === 'modulation') modulationPanel.resetUi();
+  if (moduleId === 'transient') transientVisualization.resetUi();
+  if (moduleId === 'compressor') compressorVisualization.resetUi();
+  if (moduleId === 'clipper') clipperVisualization.resetUi();
+});
 listen(window, 'syntakt-theme-change', renderState);
 listen(window, 'resize', renderState);
 for (const p of Object.values(PARAMETERS)) {

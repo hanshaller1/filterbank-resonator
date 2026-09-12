@@ -1,6 +1,7 @@
 export class CompressorVisualization {
   constructor(canvas, output) { this.canvas = canvas; this.output = output; this.context = canvas?.getContext('2d'); this.settings = null; this.last = ''; }
   setSettings(settings) { this.settings = settings; }
+  resetUi() { this.last = ''; }
   render(metrics = 0, enabled = false) {
     const s = this.settings; if (!s || !this.context || !this.canvas) return;
     const data = typeof metrics === 'number' ? { reduction: metrics } : metrics || {};

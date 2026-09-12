@@ -56,5 +56,6 @@ export class FreezeSyncPanel {
       for (const button of document.querySelectorAll('[data-quick="freezeEnabled"]')) button.textContent = `Freeze${armed ? ' · ' + info.triggerStatus : ''}`;
     } else for (const button of document.querySelectorAll('[data-quick="freezeEnabled"]')) button.textContent = 'Freeze';
   }
+  resetUi() { this.info = null; this.render(); }
   dispose() { this.events.abort(); this.unsubscribe(); }
 }

@@ -86,7 +86,7 @@
     <section class="controls panel edit-only" data-collapse-section="processing">
       <div class="panel-title"><h2>Processing</h2><span>Input → Freeze → Gate → Transient → Drive → Fold → Crusher → Filter → EQ → Dynamics → Width → Clipper → Mix → Output</span><div class="section-actions"><button id="processingDeselectAll" type="button">Deselect All</button><button type="button" data-section-action="collapse-processing">Collapse All</button><button type="button" data-section-action="expand-processing">Expand All</button></div></div>
       <section class="processing-module" data-collapsible="freeze">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Freeze</span><small>Free / Sync</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="freezeEnabled" type="checkbox" role="switch" aria-label="freezeEnabled"><span class="module-power-state">OFF</span></label></div>
+         <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Freeze</span><small>Free / Sync</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="freeze">Default</button><label class="module-power"><input id="freezeEnabled" type="checkbox" role="switch" aria-label="freezeEnabled"><span class="module-power-state">OFF</span></label></div>
         <div class="module-content"><div class="control-grid freeze-controls">
           <label class="control">Mode
             <select id="freezeMode" class="inline-select">
@@ -157,7 +157,7 @@
         </div>
       </section>
       <section class="processing-module" data-collapsible="gate">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Noise Gate / Expander</span><small>Gate</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="gateEnabled" type="checkbox" role="switch" aria-label="gateEnabled"><span class="module-power-state">OFF</span></label></div>
+         <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Noise Gate / Expander</span><small>Gate</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="gate">Default</button><label class="module-power"><input id="gateEnabled" type="checkbox" role="switch" aria-label="gateEnabled"><span class="module-power-state">OFF</span></label></div>
         <div class="module-content"><div class="control-grid">
           <label class="control">Mode
             <select id="gateMode" class="inline-select"><option value="gate" selected>Gate</option><option value="expander">Expander</option></select>
@@ -169,14 +169,14 @@
         </div></div>
       </section>
       <section class="processing-module" data-collapsible="transient">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Transient Shaper</span><small>Attack / Sustain</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="transientEnabled" type="checkbox" role="switch" aria-label="transientEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Transient Shaper</span><small>Attack / Sustain</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="transient">Default</button><label class="module-power"><input id="transientEnabled" type="checkbox" role="switch" aria-label="transientEnabled"><span class="module-power-state">OFF</span></label></div>
         <div class="module-content compact-visual-layout"><div class="control-grid">
           <label class="control">Attack <output id="transientAttackValue">0 %</output><input id="transientAttack" type="range" min="-100" max="100" step="1" value="0"><div class="range-labels"><span>weicher</span><span>härter</span></div></label>
           <label class="control">Sustain <output id="transientSustainValue">0 %</output><input id="transientSustain" type="range" min="-100" max="100" step="1" value="0"><div class="range-labels"><span>kürzer</span><span>länger</span></div></label>
         </div><div class="module-visual compact-module-visual"><canvas id="transientCanvas" aria-label="Transient Eingangs- und Ausgangshüllkurve"></canvas><output id="transientVisualValue">In — · Out —</output></div></div>
       </section>
       <section class="processing-module" data-collapsible="drive">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Drive</span><small>Saturation</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="driveEnabled" type="checkbox" role="switch" aria-label="driveEnabled" checked><span class="module-power-state">ON</span></label></div>
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Drive</span><small>Saturation</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="drive">Default</button><label class="module-power"><input id="driveEnabled" type="checkbox" role="switch" aria-label="driveEnabled" checked><span class="module-power-state">ON</span></label></div>
         <div class="module-content">
         <div class="control-grid drive-controls">
         <label class="control">Character <output id="characterValue">Saturation</output>
@@ -213,7 +213,7 @@
       </section>
 
       <section class="processing-module" data-collapsible="wavefolder">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Wavefolder</span><small>Fold</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="wavefolderEnabled" type="checkbox" role="switch" aria-label="wavefolderEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Wavefolder</span><small>Fold</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="wavefolder">Default</button><label class="module-power"><input id="wavefolderEnabled" type="checkbox" role="switch" aria-label="wavefolderEnabled"><span class="module-power-state">OFF</span></label></div>
         <div class="module-content compressor-layout"><div class="control-grid">
           <label class="control">Fold <output id="wavefolderFoldValue">25 %</output><input id="wavefolderFold" type="range" min="0" max="100" step="1" value="25"><div class="range-labels"><span>clean</span><span>complex</span></div></label>
           <label class="control">Symmetry / Bias <output id="wavefolderBiasValue">0 %</output><input id="wavefolderBias" type="range" min="-100" max="100" step="1" value="0"><div class="range-labels"><span>-100 %</span><span>+100 %</span></div></label>
@@ -221,17 +221,17 @@
         </div><div class="compact-module-visual module-visual" aria-label="Wavefolder Transferkurve"><canvas id="wavefolderCanvas"></canvas><output>Aktuelle Transferkurve</output></div></div>
       </section>
       <section class="processing-module" data-collapsible="crusher">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Bitcrusher / Sample Rate Reduction</span><small>Digital</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="crusherEnabled" type="checkbox" role="switch" aria-label="crusherEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Bitcrusher / Sample Rate Reduction</span><small>Digital</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="crusher">Default</button><label class="module-power"><input id="crusherEnabled" type="checkbox" role="switch" aria-label="crusherEnabled"><span class="module-power-state">OFF</span></label></div>
         <div class="module-content"><div class="control-grid">
           <label class="control check-control"><span>Bit Crush</span><input id="bitEnabled" type="checkbox" role="switch" aria-label="bitEnabled" checked><span class="check-state">ON/OFF</span></label>
           <label class="control check-control"><span>Sample Rate Reduction</span><input id="rateEnabled" type="checkbox" role="switch" aria-label="rateEnabled" checked><span class="check-state">ON/OFF</span></label>
-          <label class="control">Bit Depth <output id="bitDepthValue">8 bit</output><input id="bitDepth" type="range" min="0" max="12" step="0.01" value="6"><div class="range-labels"><span>2 bit</span><span>16 bit</span></div></label>
+          <label class="control">Bit Depth <output id="bitDepthValue">8 bit</output><input id="bitDepth" type="range" min="0" max="12" step="0.01" value="7"><div class="range-labels"><span>2 bit</span><span>16 bit</span></div></label>
           <label class="control">Reduction Amount <output id="rateReductionValue">35 %</output><input id="rateReduction" type="range" min="0" max="0.95" step="0.01" value="0.35"><div class="range-labels"><span>original</span><span>reduced</span></div></label>
         </div></div>
       </section>
 
       <section class="processing-module" data-collapsible="filter">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Filter</span><small>Low-Pass</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="filterEnabled" type="checkbox" role="switch" aria-label="filterEnabled" checked><span class="module-power-state">ON</span></label></div>
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Filter</span><small>Low-Pass</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="filter">Default</button><label class="module-power"><input id="filterEnabled" type="checkbox" role="switch" aria-label="filterEnabled" checked><span class="module-power-state">ON</span></label></div>
         <div class="module-content">
       <div class="filter-section">
         <div class="filter-type-row">
@@ -275,7 +275,7 @@
       </section>
 
       <section class="processing-module" data-collapsible="eq">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>EQ</span><small id="eqHeaderStatus">3-Band Tone</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="eqEnabled" type="checkbox" role="switch" aria-label="eqEnabled" checked><span class="module-power-state">ON</span></label></div>
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>EQ</span><small id="eqHeaderStatus">3-Band Tone</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="eq">Default</button><label class="module-power"><input id="eqEnabled" type="checkbox" role="switch" aria-label="eqEnabled" checked><span class="module-power-state">ON</span></label></div>
         <div class="module-content">
       <div class="eq-inline">
         <div class="eq-type-row">
@@ -336,7 +336,7 @@
       </section>
 
       <section class="processing-module" data-collapsible="compressor">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Compressor Light</span><small>Single Band</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="compressorEnabled" type="checkbox" role="switch" aria-label="compressorEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Compressor Light</span><small>Single Band</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="compressor">Default</button><label class="module-power"><input id="compressorEnabled" type="checkbox" role="switch" aria-label="compressorEnabled"><span class="module-power-state">OFF</span></label></div>
         <div class="module-content compressor-layout"><div class="control-grid">
           <label class="control">Threshold <output id="compressorThresholdValue">-18.0 dB</output><input id="compressorThreshold" type="range" min="-60" max="0" step="0.5" value="-18"><div class="range-labels"><span>-60 dB</span><span>0 dB</span></div></label>
           <label class="control">Ratio <output id="compressorRatioValue">4.0:1</output><input id="compressorRatio" type="range" min="1" max="20" step="0.1" value="4"><div class="range-labels"><span>1:1</span><span>20:1</span></div></label>
@@ -346,7 +346,7 @@
         </div><div class="compressor-visual module-visual" aria-label="Compressor Transfer und Gain Reduction"><canvas id="compressorCanvas"></canvas><output id="compressorReductionValue">GR: 0.0 dB</output></div></div>
       </section>
       <section class="processing-module" data-collapsible="width">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Stereo Width</span><small>Mid / Side</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="widthEnabled" type="checkbox" role="switch" aria-label="widthEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Stereo Width</span><small>Mid / Side</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="width">Default</button><label class="module-power"><input id="widthEnabled" type="checkbox" role="switch" aria-label="widthEnabled"><span class="module-power-state">OFF</span></label></div>
         <div class="module-content"><div class="control-grid width-controls">
           <label class="control">Width <output id="widthValue">100 %</output><input id="width" type="range" min="0" max="200" step="1" value="100"><div class="range-labels"><span>Mono</span><span>200 % wide</span></div></label>
           <label class="control">Crossover <output id="widthMonoBassFrequencyValue">120 Hz</output><input id="widthMonoBassFrequency" type="range" min="40" max="300" step="1" value="120"><div class="range-labels"><span>40 Hz</span><span>300 Hz</span></div></label>
@@ -354,7 +354,7 @@
         </div></div>
       </section>
       <section class="processing-module" data-collapsible="clipper">
-        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Soft Clipper / Limiter</span><small>Safety Tone</small><span class="collapse-chevron" aria-hidden="true"></span></button><label class="module-power"><input id="clipperEnabled" type="checkbox" role="switch" aria-label="clipperEnabled"><span class="module-power-state">OFF</span></label></div>
+        <div class="module-header"><button class="module-toggle" type="button" aria-expanded="true"><span>Soft Clipper / Limiter</span><small>Safety Tone</small><span class="collapse-chevron" aria-hidden="true"></span></button><button class="module-default" type="button" data-reset-module="clipper">Default</button><label class="module-power"><input id="clipperEnabled" type="checkbox" role="switch" aria-label="clipperEnabled"><span class="module-power-state">OFF</span></label></div>
         <div class="module-content compact-visual-layout"><div class="control-grid">
           <label class="control">Mode<select id="clipperMode" class="inline-select"><option value="softclip" selected>Soft Clip</option><option value="limiter">Limiter</option></select></label>
           <label class="control">Threshold <output id="clipperThresholdValue">-3.0 dB</output><input id="clipperThreshold" type="range" min="-24" max="0" step="0.5" value="-3"><div class="range-labels"><span>-24 dB</span><span>0 dB</span></div></label>

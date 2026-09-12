@@ -32,6 +32,7 @@ export class WavefolderVisualization extends CompactCanvas {
 export class TransientVisualization extends CompactCanvas {
   constructor(canvas, output) { super(canvas, output); this.input = []; this.processed = []; this.settings = {}; }
   setSettings(settings) { this.settings = settings || {}; }
+  resetUi() { this.input.length = 0; this.processed.length = 0; }
   render(metrics = {}, enabled = false) {
     this.input.push(clamp(metrics.input || 0, 0, 1.5)); this.processed.push(clamp(metrics.output || 0, 0, 1.5));
     if (this.input.length > 72) { this.input.shift(); this.processed.shift(); }
@@ -53,6 +54,7 @@ export class TransientVisualization extends CompactCanvas {
 export class ClipperVisualization extends CompactCanvas {
   constructor(canvas, output) { super(canvas, output); this.reduction = []; this.settings = {}; }
   setSettings(settings) { this.settings = settings || {}; }
+  resetUi() { this.reduction.length = 0; }
   render(metrics = {}, enabled = false) {
     const gr = enabled ? Math.max(0, metrics.reduction || 0) : 0; this.reduction.push(gr); if (this.reduction.length > 64) this.reduction.shift();
     if (this.output) this.output.value = `In ${db(metrics.input || 0).toFixed(1)} · Out ${db(metrics.output || 0).toFixed(1)} · GR ${gr.toFixed(1)} dB`;

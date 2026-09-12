@@ -90,10 +90,11 @@ test('Stereo Width controls use the requested desktop order and dedicated three-
 test('Bit-depth control allocates more positions to the musical lo-fi range', () => {
   const parameter = PARAMETERS.bitDepth;
   const values = Array.from({ length: 13 }, (_, position) => fromControl(parameter, { type: 'range', value: position }));
-  assert.deepEqual(values, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16]);
-  assert.equal(toControl(parameter, 8), 6);
-  assert.equal(toControl(parameter, 13), 10.5);
+  assert.deepEqual(values, [2, 3, 4, 5, 5.8, 6.5, 7.25, 8, 8.75, 9.5, 10.25, 11.5, 16]);
+  assert.equal(toControl(parameter, 8), 7);
+  assert.equal(toControl(parameter, 13), 11.333333333333334);
   assert.equal(toControl(parameter, 16), 12);
+  assert.ok(toControl(parameter, 9) - toControl(parameter, 5) > toControl(parameter, 16) - toControl(parameter, 9));
 });
 
 test('Bitcrusher uses continuous bit-depth quantization and keeps sample-rate reduction independent', () => {

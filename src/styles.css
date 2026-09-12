@@ -227,3 +227,5 @@ label { font-size:.875rem; }
   .module-order { order:5; margin-left:auto; }
   .status-actions button { white-space:normal; }
 }
+/* Component-local reset action in processing/module headers. */
+.module-default { flex:0 0 auto; padding:6px 9px; font-size:10px; white-space:nowrap; }

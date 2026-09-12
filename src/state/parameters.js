@@ -1,6 +1,9 @@
 // Canonical parameter domains. UI, snapshots and control sources share these definitions.
 const definitions = [];
-const BIT_DEPTH_CONTROL_MAP = Object.freeze([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16]);
+// The lower, musical lo-fi range gets most of the control travel. Above 12
+// bits the audible change is deliberately compact; the DSP still receives a
+// continuous value between these points.
+const BIT_DEPTH_CONTROL_MAP = Object.freeze([2, 3, 4, 5, 5.8, 6.5, 7.25, 8, 8.75, 9.5, 10.25, 11.5, 16]);
 const number = (id, module, displayName, min, max, value, unit = '', extra = {}) =>
   definitions.push({ id, module, displayName, type: 'number', min, max, default: value, unit, scaling: 'linear', morphable: true, modulatable: false, smoothing: 0.025, control: id, ...extra });
 const toggle = (id, module, value, extra = {}) =>
