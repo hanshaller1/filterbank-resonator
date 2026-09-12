@@ -18,9 +18,13 @@ export class RealtimeWorklet extends AudioWorkletProcessor {
     if (!this.alive) return false;
     this.kernel.process(inputs[0] || [], outputs[0], parameters);
     if (this.kernel.kind === 'clipper') {
-      this.reduction = Math.max(this.reduction || 0, this.kernel.reduction);
+      this.limiterReduction = Math.max(this.limiterReduction || 0, this.kernel.limiterReduction || 0);
+      this.softClipActivity = Math.max(this.softClipActivity || 0, this.kernel.softClipActivity || 0);
       this.frames = (this.frames || 0) + outputs[0][0].length;
-      if (this.frames >= sampleRate / 20) { this.port.postMessage({ type: 'reduction', value: this.reduction }); this.frames = 0; this.reduction = 0; }
+      if (this.frames >= sampleRate / 20) {
+        this.port.postMessage({ type: 'clipper-metrics', limiterReduction: this.limiterReduction, softClipActivity: this.softClipActivity });
+        this.frames = 0; this.limiterReduction = 0; this.softClipActivity = 0;
+      }
     }
     return true;
   }

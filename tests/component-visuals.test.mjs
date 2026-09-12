@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { Context, deviceMock } from './audio-mock.mjs';
 import { StereoWidthProcessor, wavefolderTransferCurve } from '../src/audio/AdditionalProcessors.js';
 import { RealtimeKernel, clipperTransfer } from '../src/audio/RealtimeKernel.js';
+import { ClipperLimiterProcessor } from '../src/audio/RealtimeProcessors.js';
 import { PARAMETERS, fromControl, toControl } from '../src/state/parameters.js';
 import { AppState } from '../src/state/AppState.js';
 import { AudioEngine } from '../src/audio/AudioEngine.js';
@@ -47,7 +48,7 @@ test('Mono Bass filters only the Side path and restores the original path when d
 
 test('Module visuals reuse semantic taps and actual DSP gain reduction without new nodes', async () => {
   const state = new AppState();
-  state.setParameters({ compressorEnabled: true, clipperEnabled: true });
+  state.setParameters({ compressorEnabled: true, clipperEnabled: true, clipperMode: 'limiter' });
   const engine = new AudioEngine(deviceMock(), state);
   await engine.start('', '');
   const { registry, metering } = engine.nodes, nodeCount = engine.context.nodes.length;
@@ -58,13 +59,45 @@ test('Module visuals reuse semantic taps and actual DSP gain reduction without n
   metering.taps.postWidth.analyser.level = .8;
   metering.taps.postClipper.analyser.level = .45;
   registry.get('compressor').processor.compressor.reduction = -7;
-  registry.get('clipper').processor.reduction = 4;
+  registry.get('clipper').processor.metrics = { limiterReduction: 4, softClipActivity: 0 };
   const visuals = engine.getModuleVisuals();
   assert.deepEqual(visuals.transient, { input: .4000000059604645, output: .5 });
   assert.equal(visuals.compressor.reduction, 7);
-  assert.equal(visuals.clipper.reduction, 4);
+  assert.equal(visuals.clipper.limiterReduction, 4);
+  assert.equal(visuals.clipper.softClipActivity, 0);
   assert.equal(engine.context.nodes.length, nodeCount);
   engine.dispose();
+});
+
+test('Limiter telemetry follows real DSP gain reduction while Soft Clip stays separate', () => {
+  const process = ({ mode, threshold, ceiling = -1, input = .5 }) => {
+    const kernel = new RealtimeKernel(48000, 'clipper');
+    const source = [new Float32Array(4096).fill(input), new Float32Array(4096).fill(-input)];
+    const output = [new Float32Array(4096), new Float32Array(4096)];
+    const values = { enabled: 1, mode, threshold, ceiling, amount: 1, release: 100 };
+    const parameters = Object.fromEntries(Object.entries(values).map(([id, value]) => [id, new Float32Array([value])]));
+    kernel.process(source, output, parameters);
+    return { kernel, output };
+  };
+  const high = process({ mode: 1, threshold: -3 });
+  const low = process({ mode: 1, threshold: -18 });
+  assert.ok(low.kernel.limiterReduction > high.kernel.limiterReduction + 8);
+  assert.ok(Math.abs(low.output[0].at(-1)) < Math.abs(high.output[0].at(-1)));
+  assert.equal(low.kernel.softClipActivity, 0);
+  const soft = process({ mode: 0, threshold: -18 });
+  assert.equal(soft.kernel.limiterReduction, 0);
+  assert.ok(soft.kernel.softClipActivity > 0);
+
+  const processor = new ClipperLimiterProcessor(new Context());
+  processor.update({ enabled: true, mode: 'limiter' });
+  processor.input.port.onmessage({ data: { type: 'clipper-metrics', limiterReduction: 9, softClipActivity: 3 } });
+  assert.equal(processor.getActivity(), 9);
+  assert.equal(processor.getReduction(), -9);
+  processor.update({ mode: 'softclip' });
+  processor.input.port.onmessage({ data: { type: 'clipper-metrics', limiterReduction: 0, softClipActivity: 3 } });
+  assert.equal(processor.getActivity(), 3);
+  assert.equal(processor.getReduction(), 0);
+  processor.dispose();
 });
 
 test('Removed local controls are absent while parent Modulation collapse remains', () => {

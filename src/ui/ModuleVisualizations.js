@@ -52,17 +52,23 @@ export class TransientVisualization extends CompactCanvas {
 }
 
 export class ClipperVisualization extends CompactCanvas {
-  constructor(canvas, output) { super(canvas, output); this.reduction = []; this.settings = {}; }
+  constructor(canvas, output) { super(canvas, output); this.reduction = []; this.settings = {}; this.mode = null; }
   setSettings(settings) { this.settings = settings || {}; }
   resetUi() { this.reduction.length = 0; }
   render(metrics = {}, enabled = false) {
-    const gr = enabled ? Math.max(0, metrics.reduction || 0) : 0; this.reduction.push(gr); if (this.reduction.length > 64) this.reduction.shift();
-    if (this.output) this.output.value = `In ${db(metrics.input || 0).toFixed(1)} · Out ${db(metrics.output || 0).toFixed(1)} · GR ${gr.toFixed(1)} dB`;
+    const limiter = this.settings.clipperMode === 'limiter';
+    if (this.mode !== this.settings.clipperMode) { this.reduction.length = 0; this.mode = this.settings.clipperMode; }
+    const gr = enabled && limiter ? Math.max(0, metrics.limiterReduction || 0) : 0;
+    const activity = enabled && !limiter ? Math.max(0, metrics.softClipActivity || 0) : 0;
+    if (limiter) { this.reduction.push(gr); if (this.reduction.length > 64) this.reduction.shift(); }
+    if (this.output) this.output.value = limiter
+      ? `In ${db(metrics.input || 0).toFixed(1)} · Out ${db(metrics.output || 0).toFixed(1)} · GR ${gr.toFixed(1)} dB`
+      : `In ${db(metrics.input || 0).toFixed(1)} · Out ${db(metrics.output || 0).toFixed(1)} · Clip ${activity.toFixed(1)} dB`;
     const result = this.begin(); if (!result) return; this.axes(result); const { ctx, width, height, colors } = result;
     const settings = { mode: this.settings.clipperMode, threshold: this.settings.clipperThreshold, amount: this.settings.clipperAmount, ceiling: this.settings.clipperCeiling };
     ctx.globalAlpha = enabled ? 1 : .4; ctx.strokeStyle = colors.accent; ctx.lineWidth = 2; ctx.beginPath();
     for (let index = 0; index <= 128; index++) { const input = index / 64 - 1, output = clipperTransfer(input, settings), x = 8 + index / 128 * (width - 16), y = 8 + (1 - output) * .5 * (height - 30); if (!index) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke();
     const inPeak = clamp(metrics.input || 0, 0, 1), outPeak = clamp(metrics.output || 0, 0, 1); ctx.fillStyle = colors.meter; ctx.beginPath(); ctx.arc(8 + (inPeak + 1) * .5 * (width - 16), 8 + (1 - outPeak) * .5 * (height - 30), 3, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1; ctx.strokeStyle = colors.meter; ctx.beginPath(); this.reduction.forEach((value, i) => { const x = 8 + i / 63 * (width - 16), y = height - 3 - Math.min(12, value) / 12 * 14; if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke();
+    if (limiter) { ctx.globalAlpha = 1; ctx.strokeStyle = colors.meter; ctx.beginPath(); this.reduction.forEach((value, i) => { const x = 8 + i / 63 * (width - 16), y = height - 3 - Math.min(12, value) / 12 * 14; if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke(); }
   }
 }

@@ -32,9 +32,25 @@ export class BitcrusherProcessor extends RealtimeProcessor {
 export class ClipperLimiterProcessor extends RealtimeProcessor {
   constructor(context) {
     super(context, 'clipper', { enabled: false, mode: 'softclip', threshold: -3, amount: .25, ceiling: -1, release: 100 });
-    this.reduction = 0;
-    this.input.port.onmessage = ({ data }) => { if (data.type === 'reduction') this.reduction = Number.isFinite(data.value) ? Math.max(0, data.value) : 0; };
+    this.metrics = { limiterReduction: 0, softClipActivity: 0 };
+    this.input.port.onmessage = ({ data }) => {
+      if (data.type === 'clipper-metrics') this.metrics = {
+        limiterReduction: Number.isFinite(data.limiterReduction) ? Math.max(0, data.limiterReduction) : 0,
+        softClipActivity: Number.isFinite(data.softClipActivity) ? Math.max(0, data.softClipActivity) : 0
+      };
+      // Accept an already loaded pre-fix worklet until the next audio restart.
+      if (data.type === 'reduction' && Number.isFinite(data.value)) {
+        const value = Math.max(0, data.value);
+        this.metrics = this.settings.mode === 'limiter' ? { limiterReduction: value, softClipActivity: 0 } : { limiterReduction: 0, softClipActivity: value };
+      }
+    };
   }
-  getActivity() { return this.enabled ? this.reduction : 0; }
-  getReduction() { return this.enabled && this.settings.mode === 'limiter' ? -this.reduction : 0; }
+  update(settings = {}) {
+    const previousMode = this.settings?.mode;
+    super.update(settings);
+    if (this.metrics && (previousMode !== this.settings.mode || !this.enabled)) this.metrics = { limiterReduction: 0, softClipActivity: 0 };
+  }
+  getActivity() { return this.enabled ? this.settings.mode === 'limiter' ? this.metrics.limiterReduction : this.metrics.softClipActivity : 0; }
+  getReduction() { return this.enabled && this.settings.mode === 'limiter' ? -this.metrics.limiterReduction : 0; }
+  getMetrics() { return this.enabled ? { ...this.metrics } : { limiterReduction: 0, softClipActivity: 0 }; }
 }

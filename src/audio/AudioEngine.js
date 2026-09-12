@@ -130,7 +130,7 @@ export class AudioEngine {
       wavefolder: registry.get('wavefolder').processor.getTransferCurve(),
       transient: { input: peaks[inputTap('transient')] || 0, output: peaks.postTransient || 0 },
       compressor: { input: peaks[inputTap('compressor')] || 0, output: peaks.postCompressor || 0, reduction: dynamics.compressor },
-      clipper: { input: peaks[inputTap('clipper')] || 0, output: peaks.postClipper || 0, reduction: registry.get('clipper').processor.getActivity() || 0 }
+      clipper: { input: peaks[inputTap('clipper')] || 0, output: peaks.postClipper || 0, ...registry.get('clipper').processor.getMetrics() }
     };
   }
   stop() { ++this.generation; this.deviceManager.closeInput(); this.disconnectNodes(); this.active = false; }

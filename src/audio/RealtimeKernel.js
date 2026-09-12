@@ -22,6 +22,8 @@ export class RealtimeKernel {
   }
   process(input, output, p) {
     this.reduction = 0;
+    this.limiterReduction = 0;
+    this.softClipActivity = 0;
     const left = input[0], right = input[1] || left;
     const outL = output[0], outR = output[1] || outL;
     const at = (id, i) => p[id]?.[p[id].length === 1 ? 0 : i] ?? 0;
@@ -56,7 +58,12 @@ export class RealtimeKernel {
         wl = clamp(softClip(l, threshold, room, amount) * (1 - mode) + l * this.gain * mode, -ceiling, ceiling);
         wr = clamp(softClip(r, threshold, room, amount) * (1 - mode) + r * this.gain * mode, -ceiling, ceiling);
         const outLevel = Math.max(Math.abs(wl), Math.abs(wr));
-        if (level > 1e-8) this.reduction = Math.max(this.reduction, 20 * Math.log10(level / Math.max(outLevel, 1e-9)) * this.mix);
+        if (level > 1e-8) {
+          const reduction = Math.max(0, 20 * Math.log10(level / Math.max(outLevel, 1e-9)) * this.mix);
+          if (mode >= .5) this.limiterReduction = Math.max(this.limiterReduction, reduction);
+          else this.softClipActivity = Math.max(this.softClipActivity, reduction);
+          this.reduction = Math.max(this.limiterReduction, this.softClipActivity);
+        }
       } else {
         const step = at('rateEnabled', i) >= .5 ? 1 + Math.round(at('reduction', i) * 31) : 1;
         if (this.counter <= 0 || this.counter >= step) { this.hold[0] = l; this.hold[1] = r; this.counter = step; }
