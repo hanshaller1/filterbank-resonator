@@ -164,8 +164,8 @@ export class UI {
     this.elements.autoGainValue.value = `AG: ${correction >= 0 ? '+' : ''}${correction.toFixed(1)} dB`;
   }
 
-  setClipperActivity(value) {
-    this.elements.clipperActivityValue.value = `Activity: ${Number.isFinite(value) ? value.toFixed(1) : '0.0'} dB`;
+  setClipperActivity(value, mode = 'softclip') {
+    this.elements.clipperActivityValue.value = `Activity: ${Number.isFinite(value) ? value.toFixed(1) : '0.0'} ${mode === 'limiter' ? 'dB' : '%'}`;
   }
 
   setFreezeTempo(info) {

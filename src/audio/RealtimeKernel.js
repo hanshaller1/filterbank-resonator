@@ -5,10 +5,14 @@ export const softClip = (value, threshold, room, amount) => {
   const rounded = magnitude <= threshold ? magnitude : threshold + room * Math.tanh((magnitude - threshold) / room);
   return value + (Math.sign(value) * rounded - value) * amount;
 };
+export function softClipTransfer(value, settings = {}) {
+  const threshold = 10 ** (Number(settings.threshold ?? -3) / 20);
+  return softClip(value, threshold, Math.max(.001, 1 - threshold), clamp(Number(settings.amount ?? .25), 0, 1));
+}
 export function clipperTransfer(value, settings = {}) {
   const threshold = 10 ** (Number(settings.threshold ?? -3) / 20), ceiling = 10 ** (Number(settings.ceiling ?? -1) / 20);
   if (settings.mode === 'limiter' || settings.mode === 1) return clamp(value * Math.min(1, threshold / Math.max(Math.abs(value), 1e-9)), -ceiling, ceiling);
-  return clamp(softClip(value, threshold, Math.max(.001, 1 - threshold), clamp(Number(settings.amount ?? .25), 0, 1)), -ceiling, ceiling);
+  return clamp(softClipTransfer(value, settings), -ceiling, ceiling);
 }
 export class RealtimeKernel {
   constructor(sampleRate, kind) {
@@ -55,13 +59,20 @@ export class RealtimeKernel {
         this.gain = desired < this.gain ? desired : desired + (this.gain - desired) * Math.exp(-1 / (Math.max(20, at('release', i)) * .001 * this.sampleRate));
         const mode = clamp(at('mode', i), 0, 1), amount = clamp(at('amount', i), 0, 1);
         const room = Math.max(.001, 1 - threshold);
-        wl = clamp(softClip(l, threshold, room, amount) * (1 - mode) + l * this.gain * mode, -ceiling, ceiling);
-        wr = clamp(softClip(r, threshold, room, amount) * (1 - mode) + r * this.gain * mode, -ceiling, ceiling);
+        const softL = softClip(l, threshold, room, amount), softR = softClip(r, threshold, room, amount);
+        wl = clamp(softL * (1 - mode) + l * this.gain * mode, -ceiling, ceiling);
+        wr = clamp(softR * (1 - mode) + r * this.gain * mode, -ceiling, ceiling);
         const outLevel = Math.max(Math.abs(wl), Math.abs(wr));
         if (level > 1e-8) {
-          const reduction = Math.max(0, 20 * Math.log10(level / Math.max(outLevel, 1e-9)) * this.mix);
-          if (mode >= .5) this.limiterReduction = Math.max(this.limiterReduction, reduction);
-          else this.softClipActivity = Math.max(this.softClipActivity, reduction);
+          if (mode >= .5) {
+            const reduction = Math.max(0, 20 * Math.log10(level / Math.max(outLevel, 1e-9)) * this.mix);
+            this.limiterReduction = Math.max(this.limiterReduction, reduction);
+          } else {
+            // True Soft Clip activity before the independent final ceiling:
+            // percentage of the input waveform changed by the nonlinear stage.
+            const changed = Math.max(Math.abs(l - softL), Math.abs(r - softR));
+            this.softClipActivity = Math.max(this.softClipActivity, changed / level * 100 * this.mix * (1 - mode));
+          }
           this.reduction = Math.max(this.limiterReduction, this.softClipActivity);
         }
       } else {

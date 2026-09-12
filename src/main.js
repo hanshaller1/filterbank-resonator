@@ -197,7 +197,7 @@ function updateMeters() {
     const tempo = engine.updateDetectors();
     const dynamics = engine.getGainReduction();
     ui.setFreezeTempo(tempo); freezeSyncPanel.update(tempo); modulationPanel.setTempo(tempo);
-    ui.setClipperActivity(engine.getClipperActivity());
+    ui.setClipperActivity(engine.getClipperActivity(), store.state.parameters.clipperMode);
     const moduleVisuals = engine.getModuleVisuals();
     if (moduleVisuals) {
       wavefolderVisualization.render(moduleVisuals.wavefolder, effectiveVisualSettings, effectiveVisualSettings.wavefolderEnabled);

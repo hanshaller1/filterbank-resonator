@@ -1,5 +1,5 @@
 import { wavefolderTransferCurve } from '../audio/AdditionalProcessors.js';
-import { clipperTransfer } from '../audio/RealtimeKernel.js';
+import { clipperTransfer, softClipTransfer } from '../audio/RealtimeKernel.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const db = value => 20 * Math.log10(Math.max(1e-6, value));
@@ -64,13 +64,14 @@ export class ClipperVisualization extends CompactCanvas {
     else { this.activity.push(activity); if (this.activity.length > 64) this.activity.shift(); }
     if (this.output) this.output.value = limiter
       ? `In ${db(metrics.input || 0).toFixed(1)} · Out ${db(metrics.output || 0).toFixed(1)} · GR ${gr.toFixed(1)} dB`
-      : `In ${db(metrics.input || 0).toFixed(1)} · Out ${db(metrics.output || 0).toFixed(1)} · Clip ${activity.toFixed(1)} dB`;
+      : `In ${db(metrics.input || 0).toFixed(1)} · Out ${db(metrics.output || 0).toFixed(1)} · Clip ${activity.toFixed(1)} %`;
     const result = this.begin(); if (!result) return; this.axes(result); const { ctx, width, height, colors } = result;
     const settings = { mode: this.settings.clipperMode, threshold: this.settings.clipperThreshold, amount: this.settings.clipperAmount, ceiling: this.settings.clipperCeiling };
     ctx.globalAlpha = enabled ? 1 : .4; ctx.strokeStyle = colors.accent; ctx.lineWidth = 2; ctx.beginPath();
-    for (let index = 0; index <= 128; index++) { const input = index / 64 - 1, output = clipperTransfer(input, settings), x = 8 + index / 128 * (width - 16), y = 8 + (1 - output) * .5 * (height - 30); if (!index) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke();
+    for (let index = 0; index <= 128; index++) { const input = index / 64 - 1, output = limiter ? clipperTransfer(input, settings) : softClipTransfer(input, settings), x = 8 + index / 128 * (width - 16), y = 8 + (1 - output) * .5 * (height - 30); if (!index) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke();
+    if (!limiter) { const ceiling = 10 ** (Number(this.settings.clipperCeiling ?? -1) / 20), y = value => 8 + (1 - value) * .5 * (height - 30); ctx.globalAlpha = enabled ? .7 : .3; ctx.strokeStyle = colors.secondary; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(8, y(ceiling)); ctx.lineTo(width - 8, y(ceiling)); ctx.moveTo(8, y(-ceiling)); ctx.lineTo(width - 8, y(-ceiling)); ctx.stroke(); ctx.setLineDash([]); }
     const inPeak = clamp(metrics.input || 0, 0, 1), outPeak = clamp(metrics.output || 0, 0, 1); ctx.fillStyle = colors.meter; ctx.beginPath(); ctx.arc(8 + (inPeak + 1) * .5 * (width - 16), 8 + (1 - outPeak) * .5 * (height - 30), 3, 0, Math.PI * 2); ctx.fill();
     if (limiter) { ctx.globalAlpha = 1; ctx.strokeStyle = colors.meter; ctx.beginPath(); this.reduction.forEach((value, i) => { const x = 8 + i / 63 * (width - 16), y = height - 3 - Math.min(12, value) / 12 * 14; if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke(); }
-    else { ctx.globalAlpha = 1; ctx.strokeStyle = colors.meter; ctx.beginPath(); this.activity.forEach((value, i) => { const x = 8 + i / 63 * (width - 16), y = height - 3 - Math.min(12, value) / 12 * 14; if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke(); }
+    else { ctx.globalAlpha = 1; ctx.strokeStyle = colors.meter; ctx.beginPath(); this.activity.forEach((value, i) => { const x = 8 + i / 63 * (width - 16), historyHeight = Math.min(height - 16, Math.max(0, value) / 30 * 14 * 2.5), y = height - 3 - historyHeight; if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y); }); ctx.stroke(); }
   }
 }

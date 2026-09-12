@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Context, deviceMock } from './audio-mock.mjs';
 import { StereoWidthProcessor, wavefolderTransferCurve } from '../src/audio/AdditionalProcessors.js';
-import { RealtimeKernel, clipperTransfer } from '../src/audio/RealtimeKernel.js';
+import { RealtimeKernel, clipperTransfer, softClipTransfer } from '../src/audio/RealtimeKernel.js';
 import { ClipperLimiterProcessor } from '../src/audio/RealtimeProcessors.js';
 import { ClipperVisualization } from '../src/ui/ModuleVisualizations.js';
 import { PARAMETERS, fromControl, toControl } from '../src/state/parameters.js';
@@ -28,6 +28,9 @@ test('Clipper transfer helper follows soft-clip amount, threshold and limiter ce
   );
   const limited = clipperTransfer(2, { mode: 'limiter', threshold: -3, ceiling: -6 });
   assert.ok(Math.abs(limited - 10 ** (-6 / 20)) < 1e-12);
+  assert.equal(softClipTransfer(input, { threshold: -18, amount: 1, ceiling: -1 }), softClipTransfer(input, { threshold: -18, amount: 1, ceiling: -12 }));
+  assert.equal(softClipTransfer(input, { threshold: -18, amount: 0 }), input);
+  assert.ok(softClipTransfer(input, { threshold: -24, amount: 1 }) < softClipTransfer(input, { threshold: -12, amount: 1 }));
 });
 
 test('Mono Bass filters only the Side path and restores the original path when disabled', () => {
@@ -91,6 +94,15 @@ test('Limiter telemetry follows real DSP gain reduction while Soft Clip stays se
   assert.ok(soft.kernel.softClipActivity > process({ mode: 0, threshold: -6 }).kernel.softClipActivity);
   assert.ok(soft.kernel.softClipActivity > process({ mode: 0, threshold: -18, amount: .2 }).kernel.softClipActivity);
   assert.ok(process({ mode: 0, threshold: -18, input: .8 }).kernel.softClipActivity > process({ mode: 0, threshold: -18, input: .2 }).kernel.softClipActivity);
+  const none = process({ mode: 0, threshold: 0, amount: 1 });
+  const moderate = process({ mode: 0, threshold: -12, amount: 1 });
+  const strong = process({ mode: 0, threshold: -24, amount: 1 });
+  assert.equal(none.kernel.softClipActivity, 0);
+  assert.ok(moderate.kernel.softClipActivity > none.kernel.softClipActivity);
+  assert.ok(strong.kernel.softClipActivity > moderate.kernel.softClipActivity);
+  assert.equal(process({ mode: 0, threshold: -24, amount: 0 }).kernel.softClipActivity, 0);
+  assert.ok(process({ mode: 0, threshold: -24, amount: 1 }).kernel.softClipActivity > process({ mode: 0, threshold: -24, amount: .5 }).kernel.softClipActivity);
+  assert.equal(process({ mode: 0, threshold: -24, amount: 1, ceiling: -1 }).kernel.softClipActivity, process({ mode: 0, threshold: -24, amount: 1, ceiling: -10 }).kernel.softClipActivity);
 
   const processor = new ClipperLimiterProcessor(new Context());
   processor.update({ enabled: true, mode: 'limiter' });
@@ -111,7 +123,13 @@ test('Soft Clip visualization keeps a real DSP activity history separate from Li
   visual.render({ input: .5, output: .3, limiterReduction: 9, softClipActivity: 4 }, true);
   assert.deepEqual(visual.activity, [2.5, 4]);
   assert.deepEqual(visual.reduction, []);
-  assert.match(visual.output.value, /Clip 4\.0 dB/);
+  assert.match(visual.output.value, /Clip 4\.0 %/);
+});
+
+test('Processing modules use independent cards without an orange selection divider', () => {
+  const css = readFileSync('src/styles.css', 'utf8');
+  assert.match(css, /\.processing-module\s*\{[^}]*border:1px solid var\(--border\)[^}]*border-radius:9px/);
+  assert.doesNotMatch(css, /\.processing-module\.is-selected\s*\{[^}]*border-top-color:var\(--accent\)/);
 });
 
 test('Removed local controls are absent while parent Modulation collapse remains', () => {
